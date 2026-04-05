@@ -19,6 +19,14 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
+      - name: Setup shared packages
+        run: |
+          git clone --depth 1 https://github.com/MabrokaMedia/davoxi-shared.git /tmp/davoxi-shared
+          ln -s /tmp/davoxi-shared/packages $GITHUB_WORKSPACE/../packages
+          cd /tmp/davoxi-shared/packages/client
+          npm install --ignore-scripts
+          npx tsc || true
+
       - run: npm ci
       - run: npm run build
 
