@@ -3,7 +3,7 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { DavoxiClient } from "../client.js";
+import type { DavoxiClient } from "@davoxi/client";
 
 export function registerAnalyticsTools(
   server: McpServer,

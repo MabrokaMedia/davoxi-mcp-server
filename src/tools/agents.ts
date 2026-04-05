@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { DavoxiClient } from "../client.js";
+import type { DavoxiClient } from "@davoxi/client";
 
 const toolDefinitionSchema = z.object({
   name: z.string().describe("The tool name, used as an identifier (e.g. 'book_appointment')."),

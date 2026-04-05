@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { DavoxiClient } from "../client.js";
+import type { DavoxiClient, VoiceConfig, MasterConfig } from "@davoxi/client";
 
 export function registerBusinessTools(
   server: McpServer,
@@ -222,7 +222,7 @@ After creating a business, you can add specialist agents to it using the create_
         if (params.phone_numbers !== undefined) data.phone_numbers = params.phone_numbers;
 
         if (params.voice !== undefined || params.language !== undefined || params.personality_prompt !== undefined) {
-          const vc: Partial<import("../types.js").VoiceConfig> = {};
+          const vc: Partial<VoiceConfig> = {};
           if (params.voice !== undefined) vc.voice = params.voice;
           if (params.language !== undefined) vc.language = params.language;
           if (params.personality_prompt !== undefined) vc.personality_prompt = params.personality_prompt;
@@ -233,7 +233,7 @@ After creating a business, you can add specialist agents to it using the create_
           params.temperature !== undefined ||
           params.max_specialists_per_turn !== undefined
         ) {
-          const mc: Partial<import("../types.js").MasterConfig> = {};
+          const mc: Partial<MasterConfig> = {};
           if (params.temperature !== undefined) mc.temperature = params.temperature;
           if (params.max_specialists_per_turn !== undefined) mc.max_specialists_per_turn = params.max_specialists_per_turn;
           data.master_config = mc;

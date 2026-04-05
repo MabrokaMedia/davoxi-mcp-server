@@ -11,7 +11,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/bin/davoxi-mcp.js",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test": "vitest run"
   },
   "keywords": [
     "mcp",
@@ -30,12 +31,14 @@
     "url": "https://github.com/MabrokaMedia/davoxi-mcp-server.git"
   },
   "dependencies": {
+    "@davoxi/client": "file:../packages/client",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.2"
   },
   "engines": {
     "node": ">=18.0.0"

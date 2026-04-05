@@ -11,7 +11,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { DavoxiClient } from "./client.js";
+import { DavoxiClient } from "@davoxi/client";
 import { registerBusinessTools } from "./tools/businesses.js";
 import { registerAgentTools } from "./tools/agents.js";
 import { registerAnalyticsTools } from "./tools/analytics.js";
@@ -36,7 +36,7 @@ export function createServer(): McpServer {
   const apiKey = getEnvOrThrow("DAVOXI_API_KEY");
   const apiUrl = process.env.DAVOXI_API_URL;
 
-  const client = new DavoxiClient(apiKey, apiUrl);
+  const client = new DavoxiClient({ apiKey, apiUrl });
   const getClient = () => client;
 
   const server = new McpServer({
