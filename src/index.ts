@@ -32,9 +32,41 @@ function getEnvOrThrow(name: string): string {
   return value;
 }
 
+/**
+ * Validate that a URL string is an acceptable API base URL.
+ * Accepts https:// for any host, and http://localhost or http://127.0.0.1 for
+ * local development. Throws with a helpful message if the value is invalid.
+ */
+export function validateApiUrl(raw: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(
+      `DAVOXI_API_URL is not a valid URL: "${raw}". ` +
+        `Expected an https:// URL (e.g. https://api.davoxi.com) ` +
+        `or http://localhost for local development.`,
+    );
+  }
+
+  const isHttps = parsed.protocol === "https:";
+  const isLocalHttp =
+    parsed.protocol === "http:" &&
+    (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+
+  if (!isHttps && !isLocalHttp) {
+    throw new Error(
+      `DAVOXI_API_URL must be an https:// URL or http://localhost, got: "${raw}".`,
+    );
+  }
+
+  return raw;
+}
+
 export function createServer(): McpServer {
   const apiKey = getEnvOrThrow("DAVOXI_API_KEY");
-  const apiUrl = process.env.DAVOXI_API_URL;
+  const rawApiUrl = process.env.DAVOXI_API_URL;
+  const apiUrl = rawApiUrl !== undefined ? validateApiUrl(rawApiUrl) : undefined;
 
   const client = new DavoxiClient({ apiKey, apiUrl });
   const getClient = () => client;

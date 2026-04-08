@@ -14,6 +14,7 @@
 import { main } from "../src/index.js";
 
 main().catch((err: unknown) => {
-  console.error("Fatal error starting Davoxi MCP server:", err);
+  const message = err instanceof Error ? err.message : String(err);
+  console.error("Fatal error starting Davoxi MCP server:", message);
   process.exit(1);
 });
