@@ -19,7 +19,16 @@ import { registerAccountTools } from "./tools/account.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const pkg = JSON.parse(readFileSync(join(__dirname, "..", "..", "package.json"), "utf-8"));
+// Try multiple relative paths to support both source (src/) and compiled (dist/src/) layouts
+let pkg: { name?: string; version?: string } = { name: "davoxi-mcp", version: "0.0.0" };
+for (const rel of ["../../package.json", "../package.json"]) {
+  try {
+    pkg = JSON.parse(readFileSync(join(__dirname, rel), "utf-8"));
+    break;
+  } catch {
+    // try next path
+  }
+}
 
 function getEnvOrThrow(name: string): string {
   const value = process.env[name];
