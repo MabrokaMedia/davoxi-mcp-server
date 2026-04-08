@@ -77,6 +77,8 @@ export function registerAccountTools(
     {
       name: z
         .string()
+        .min(1)
+        .max(100)
         .optional()
         .describe(
           "An optional human-readable name for the API key (e.g. 'production', 'staging', 'ci-cd'). Helps identify the key later.",

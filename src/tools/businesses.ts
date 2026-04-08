@@ -83,6 +83,8 @@ After creating a business, you can add specialist agents to it using the create_
     {
       name: z
         .string()
+        .min(1)
+        .max(255)
         .describe("The display name of the business (e.g. 'Acme Corp')."),
       phone_numbers: z
         .array(z.string())
@@ -104,6 +106,7 @@ After creating a business, you can add specialist agents to it using the create_
         ),
       personality_prompt: z
         .string()
+        .max(10000)
         .optional()
         .describe(
           "A prompt that defines the AI agent's personality and speaking style. E.g. 'You are a friendly and professional customer service representative.'",
@@ -183,7 +186,7 @@ After creating a business, you can add specialist agents to it using the create_
       business_id: z
         .string()
         .describe("The unique identifier of the business to update."),
-      name: z.string().optional().describe("New display name for the business."),
+      name: z.string().min(1).max(255).optional().describe("New display name for the business."),
       phone_numbers: z
         .array(z.string())
         .optional()
@@ -200,6 +203,7 @@ After creating a business, you can add specialist agents to it using the create_
         .describe("New language in BCP-47 format (e.g. 'en-US')."),
       personality_prompt: z
         .string()
+        .max(10000)
         .optional()
         .describe("New personality prompt for the voice agent."),
       temperature: z

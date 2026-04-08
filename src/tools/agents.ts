@@ -7,11 +7,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { DavoxiClient } from "@davoxi/client";
 
 const toolDefinitionSchema = z.object({
-  name: z.string().describe("The tool name, used as an identifier (e.g. 'book_appointment')."),
-  description: z.string().describe("Human-readable description of what this tool does, shown to the AI so it knows when to invoke it."),
+  name: z.string().min(1).max(100).describe("The tool name, used as an identifier (e.g. 'book_appointment')."),
+  description: z.string().min(1).max(1000).describe("Human-readable description of what this tool does, shown to the AI so it knows when to invoke it."),
   parameters: z.record(z.unknown()).describe("JSON Schema describing the tool's parameters."),
-  endpoint: z.string().describe("The HTTP endpoint to call when this tool is invoked (e.g. 'https://api.example.com/book')."),
-  auth_ssm_path: z.string().describe("AWS SSM Parameter Store path containing the API key or auth token for this endpoint."),
+  endpoint: z.string().url().describe("The HTTP endpoint to call when this tool is invoked (e.g. 'https://api.example.com/book')."),
+  auth_ssm_path: z.string().min(1).max(500).describe("AWS SSM Parameter Store path containing the API key or auth token for this endpoint."),
   requires_confirmation: z.boolean().describe("If true, the AI will ask the caller to confirm before executing this tool (recommended for actions with side effects like bookings or payments)."),
 });
 
@@ -115,11 +115,15 @@ Example: An appointment-booking agent might have a system prompt like "You help 
         .describe("The business ID to create the agent under."),
       description: z
         .string()
+        .min(1)
+        .max(500)
         .describe(
           "A concise description of what this specialist agent does. This is shown to the master agent so it knows when to delegate to this specialist. E.g. 'Handles appointment scheduling and rescheduling requests.'",
         ),
       system_prompt: z
         .string()
+        .min(1)
+        .max(50000)
         .describe(
           "Detailed instructions that define how this specialist agent behaves during a call. Include tone, rules, what information to collect, and how to handle edge cases. This is the core 'personality' and 'knowledge' of the specialist.",
         ),
@@ -130,13 +134,15 @@ Example: An appointment-booking agent might have a system prompt like "You help 
           "External tool integrations this agent can invoke during a call. Each tool has an HTTP endpoint, parameter schema, and auth config. Use these to connect the agent to your CRM, booking system, knowledge base, etc.",
         ),
       knowledge_sources: z
-        .array(z.string())
+        .array(z.string().url())
+        .max(20)
         .optional()
         .describe(
           "URLs or document identifiers the agent can reference for answering questions. E.g. ['https://docs.example.com/faq', 's3://my-bucket/product-manual.pdf'].",
         ),
       trigger_tags: z
-        .array(z.string())
+        .array(z.string().min(1).max(100))
+        .max(50)
         .optional()
         .describe(
           "Keywords or intent labels that cause the master agent to route a caller to this specialist. E.g. ['appointment', 'schedule', 'booking', 'reschedule', 'cancel appointment'].",
@@ -196,10 +202,14 @@ Example: An appointment-booking agent might have a system prompt like "You help 
         .describe("The unique identifier of the agent to update."),
       description: z
         .string()
+        .min(1)
+        .max(500)
         .optional()
         .describe("New description of what the specialist does."),
       system_prompt: z
         .string()
+        .min(1)
+        .max(50000)
         .optional()
         .describe("New system prompt / instructions for the specialist."),
       tools: z
@@ -209,11 +219,13 @@ Example: An appointment-booking agent might have a system prompt like "You help 
           "Updated list of tool integrations. This replaces the entire tools list.",
         ),
       knowledge_sources: z
-        .array(z.string())
+        .array(z.string().url())
+        .max(20)
         .optional()
         .describe("Updated knowledge source URLs/IDs. Replaces the entire list."),
       trigger_tags: z
-        .array(z.string())
+        .array(z.string().min(1).max(100))
+        .max(50)
         .optional()
         .describe("Updated trigger tags. Replaces the entire list."),
       enabled: z
