@@ -20,7 +20,7 @@ import { registerAccountTools } from "./tools/account.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // Try multiple relative paths to support both source (src/) and compiled (dist/src/) layouts
-let pkg: { name?: string; version?: string } = { name: "davoxi-mcp", version: "0.0.0" };
+let pkg: { name: string; version: string } = { name: "davoxi-mcp", version: "0.0.0" };
 for (const rel of ["../../package.json", "../package.json"]) {
   try {
     pkg = JSON.parse(readFileSync(join(__dirname, rel), "utf-8"));
