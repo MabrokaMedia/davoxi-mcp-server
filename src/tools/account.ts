@@ -112,22 +112,37 @@ export function registerAccountTools(
   // ── revoke_api_key ───────────────────────────────────────────────── //
   server.tool(
     "revoke_api_key",
-    "Permanently revoke an API key by its prefix. The key will immediately stop working for authentication. This cannot be undone — you'll need to create a new key if needed. Use list_api_keys first to find the prefix.",
+    "Permanently revoke an API key by its prefix. The key will immediately stop working for authentication. This cannot be undone — any services using this key will lose access. Requires confirm=true as a safety check. Use list_api_keys first to find the prefix.",
     {
       prefix: z
         .string()
         .describe(
           "The prefix of the API key to revoke. Get this from list_api_keys (e.g. 'sk_abc1').",
         ),
+      confirm: z
+        .boolean()
+        .describe(
+          "Must be set to true to confirm revocation. This is a safety check because any integrations using this key will immediately lose access.",
+        ),
     },
-    async ({ prefix }) => {
+    async ({ prefix, confirm }) => {
+      if (!confirm) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Revocation not confirmed. Set confirm=true to permanently revoke API key '${prefix}'. Any services or integrations using this key will immediately lose access.`,
+            },
+          ],
+        };
+      }
       try {
         await getClient().revokeApiKey(prefix);
         return {
           content: [
             {
               type: "text" as const,
-              text: `API key with prefix '${prefix}' revoked successfully.`,
+              text: `API key with prefix '${prefix}' revoked successfully. Create a new key with create_api_key if you need a replacement.`,
             },
           ],
         };

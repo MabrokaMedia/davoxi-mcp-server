@@ -272,20 +272,35 @@ After creating a business, you can add specialist agents to it using the create_
   // ── delete_business ──────────────────────────────────────────────── //
   server.tool(
     "delete_business",
-    "Permanently delete a Davoxi business and all its associated agents, phone numbers, and configuration. This action cannot be undone. The business will immediately stop handling calls.",
+    "Permanently delete a Davoxi business and ALL associated agents, phone numbers, webhooks, and configuration. This action CANNOT be undone. The business will immediately stop handling calls. Requires confirm=true as a safety check.",
     {
       business_id: z
         .string()
         .describe("The unique identifier of the business to delete."),
+      confirm: z
+        .boolean()
+        .describe(
+          "Must be set to true to confirm deletion. This is a safety check because deleting a business also deletes ALL its agents, phone number assignments, and webhooks permanently.",
+        ),
     },
-    async ({ business_id }) => {
+    async ({ business_id, confirm }) => {
+      if (!confirm) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Deletion not confirmed. Set confirm=true to permanently delete business ${business_id} and ALL its agents, phone number assignments, and webhooks. This cannot be undone.`,
+            },
+          ],
+        };
+      }
       try {
         await getClient().deleteBusiness(business_id);
         return {
           content: [
             {
               type: "text" as const,
-              text: `Business ${business_id} deleted successfully.`,
+              text: `Business ${business_id} deleted successfully. All associated agents, phone number assignments, and webhooks have been removed.`,
             },
           ],
         };

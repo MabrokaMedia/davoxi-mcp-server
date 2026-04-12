@@ -16,6 +16,10 @@ import { registerBusinessTools } from "./tools/businesses.js";
 import { registerAgentTools } from "./tools/agents.js";
 import { registerAnalyticsTools } from "./tools/analytics.js";
 import { registerAccountTools } from "./tools/account.js";
+import { registerCallTools } from "./tools/calls.js";
+import { registerWebhookTools } from "./tools/webhooks.js";
+import { registerPhoneTools } from "./tools/phones.js";
+import { loadMcpCredentials } from "./auth/credentials.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,15 +34,21 @@ for (const rel of ["../../package.json", "../package.json"]) {
   }
 }
 
-function getEnvOrThrow(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(
-      `Missing required environment variable: ${name}. ` +
-        `Set it before starting the server (e.g. export ${name}=sk_...).`,
-    );
-  }
-  return value;
+/**
+ * Resolve the API key from environment variable or saved credentials.
+ * Priority: DAVOXI_API_KEY env var → ~/.davoxi/mcp.json → throw
+ */
+function resolveApiKey(): string {
+  const envKey = process.env.DAVOXI_API_KEY;
+  if (envKey) return envKey;
+
+  const saved = loadMcpCredentials();
+  if (saved?.api_key) return saved.api_key;
+
+  throw new Error(
+    "No API key found. Run 'npx @davoxi/mcp-server auth login' to authenticate via browser, " +
+      "or set the DAVOXI_API_KEY environment variable.",
+  );
 }
 
 /**
@@ -73,7 +83,7 @@ export function validateApiUrl(raw: string): string {
 }
 
 export function createServer(): McpServer {
-  const apiKey = getEnvOrThrow("DAVOXI_API_KEY");
+  const apiKey = resolveApiKey();
   const rawApiUrl = process.env.DAVOXI_API_URL;
   const apiUrl = rawApiUrl !== undefined ? validateApiUrl(rawApiUrl) : undefined;
 
@@ -91,6 +101,9 @@ export function createServer(): McpServer {
   // Register all tool groups
   registerBusinessTools(server, getClient);
   registerAgentTools(server, getClient);
+  registerCallTools(server, getClient);
+  registerWebhookTools(server, getClient);
+  registerPhoneTools(server, getClient);
   registerAnalyticsTools(server, getClient);
   registerAccountTools(server, getClient);
 

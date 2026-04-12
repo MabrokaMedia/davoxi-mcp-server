@@ -5,15 +5,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { DavoxiClient } from "@davoxi/client";
-
-const toolDefinitionSchema = z.object({
-  name: z.string().min(1).max(100).describe("The tool name, used as an identifier (e.g. 'book_appointment')."),
-  description: z.string().min(1).max(1000).describe("Human-readable description of what this tool does, shown to the AI so it knows when to invoke it."),
-  parameters: z.record(z.unknown()).describe("JSON Schema describing the tool's parameters."),
-  endpoint: z.string().url().describe("The HTTP endpoint to call when this tool is invoked (e.g. 'https://api.example.com/book')."),
-  auth_ssm_path: z.string().min(1).max(500).describe("AWS SSM Parameter Store path containing the API key or auth token for this endpoint."),
-  requires_confirmation: z.boolean().describe("If true, the AI will ask the caller to confirm before executing this tool (recommended for actions with side effects like bookings or payments)."),
-});
+import {
+  AGENT_LIMITS,
+  toolDefinitionSchema,
+} from "@davoxi/validation";
 
 export function registerAgentTools(
   server: McpServer,
@@ -116,16 +111,16 @@ Example: An appointment-booking agent might have a system prompt like "You help 
       description: z
         .string()
         .min(1)
-        .max(500)
+        .max(AGENT_LIMITS.DESCRIPTION_MAX)
         .describe(
-          "A concise description of what this specialist agent does. This is shown to the master agent so it knows when to delegate to this specialist. E.g. 'Handles appointment scheduling and rescheduling requests.'",
+          `A concise description of what this specialist agent does (max ${AGENT_LIMITS.DESCRIPTION_MAX} chars). This is shown to the master agent so it knows when to delegate to this specialist. E.g. 'Handles appointment scheduling and rescheduling requests.'`,
         ),
       system_prompt: z
         .string()
         .min(1)
-        .max(50000)
+        .max(AGENT_LIMITS.SYSTEM_PROMPT_MAX)
         .describe(
-          "Detailed instructions that define how this specialist agent behaves during a call. Include tone, rules, what information to collect, and how to handle edge cases. This is the core 'personality' and 'knowledge' of the specialist.",
+          `Detailed instructions that define how this specialist agent behaves during a call (max ${AGENT_LIMITS.SYSTEM_PROMPT_MAX} chars). Include tone, rules, what information to collect, and how to handle edge cases. This is the core 'personality' and 'knowledge' of the specialist.`,
         ),
       tools: z
         .array(toolDefinitionSchema)
@@ -135,17 +130,17 @@ Example: An appointment-booking agent might have a system prompt like "You help 
         ),
       knowledge_sources: z
         .array(z.string().url())
-        .max(20)
+        .max(AGENT_LIMITS.KNOWLEDGE_SOURCES_MAX)
         .optional()
         .describe(
-          "URLs or document identifiers the agent can reference for answering questions. E.g. ['https://docs.example.com/faq', 's3://my-bucket/product-manual.pdf'].",
+          `URLs or document identifiers the agent can reference for answering questions (max ${AGENT_LIMITS.KNOWLEDGE_SOURCES_MAX}). E.g. ['https://docs.example.com/faq', 's3://my-bucket/product-manual.pdf'].`,
         ),
       trigger_tags: z
-        .array(z.string().min(1).max(100))
-        .max(50)
+        .array(z.string().min(1).max(AGENT_LIMITS.TRIGGER_TAG_LENGTH_MAX))
+        .max(AGENT_LIMITS.TRIGGER_TAGS_MAX)
         .optional()
         .describe(
-          "Keywords or intent labels that cause the master agent to route a caller to this specialist. E.g. ['appointment', 'schedule', 'booking', 'reschedule', 'cancel appointment'].",
+          `Keywords or intent labels that cause the master agent to route a caller to this specialist (max ${AGENT_LIMITS.TRIGGER_TAGS_MAX}). E.g. ['appointment', 'schedule', 'booking', 'reschedule', 'cancel appointment'].`,
         ),
       enabled: z
         .boolean()
@@ -203,13 +198,13 @@ Example: An appointment-booking agent might have a system prompt like "You help 
       description: z
         .string()
         .min(1)
-        .max(500)
+        .max(AGENT_LIMITS.DESCRIPTION_MAX)
         .optional()
         .describe("New description of what the specialist does."),
       system_prompt: z
         .string()
         .min(1)
-        .max(50000)
+        .max(AGENT_LIMITS.SYSTEM_PROMPT_MAX)
         .optional()
         .describe("New system prompt / instructions for the specialist."),
       tools: z
@@ -220,12 +215,12 @@ Example: An appointment-booking agent might have a system prompt like "You help 
         ),
       knowledge_sources: z
         .array(z.string().url())
-        .max(20)
+        .max(AGENT_LIMITS.KNOWLEDGE_SOURCES_MAX)
         .optional()
         .describe("Updated knowledge source URLs/IDs. Replaces the entire list."),
       trigger_tags: z
-        .array(z.string().min(1).max(100))
-        .max(50)
+        .array(z.string().min(1).max(AGENT_LIMITS.TRIGGER_TAG_LENGTH_MAX))
+        .max(AGENT_LIMITS.TRIGGER_TAGS_MAX)
         .optional()
         .describe("Updated trigger tags. Replaces the entire list."),
       enabled: z
@@ -277,7 +272,7 @@ Example: An appointment-booking agent might have a system prompt like "You help 
   // ── delete_agent ─────────────────────────────────────────────────── //
   server.tool(
     "delete_agent",
-    "Permanently delete a specialist agent from a business. The agent will immediately stop handling calls. This cannot be undone.",
+    "Permanently delete a specialist agent from a business. The agent will immediately stop handling calls. This cannot be undone. Requires confirm=true as a safety check. Consider using update_agent with enabled=false to disable instead of deleting.",
     {
       business_id: z
         .string()
@@ -285,8 +280,23 @@ Example: An appointment-booking agent might have a system prompt like "You help 
       agent_id: z
         .string()
         .describe("The unique identifier of the agent to delete."),
+      confirm: z
+        .boolean()
+        .describe(
+          "Must be set to true to confirm deletion. This prevents accidental removal. Consider disabling the agent instead (update_agent with enabled=false).",
+        ),
     },
-    async ({ business_id, agent_id }) => {
+    async ({ business_id, agent_id, confirm }) => {
+      if (!confirm) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Deletion not confirmed. Set confirm=true to permanently delete agent ${agent_id}. Tip: You can disable the agent instead by using update_agent with enabled=false — this is reversible.`,
+            },
+          ],
+        };
+      }
       try {
         await getClient().deleteAgent(business_id, agent_id);
         return {
@@ -303,6 +313,66 @@ Example: An appointment-booking agent might have a system prompt like "You help 
             {
               type: "text" as const,
               text: `Error deleting agent: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── duplicate_agent ─────────────────────────────────────────────── //
+  server.tool(
+    "duplicate_agent",
+    `Create a copy of an existing specialist agent. The duplicated agent inherits the source agent's description, system prompt, tools, knowledge sources, and trigger tags. The copy is created in a disabled state by default so you can review and adjust it before enabling.
+
+Useful for creating variations of a working agent (e.g. a Spanish-language version) or for testing changes without affecting the live agent.`,
+    {
+      business_id: z
+        .string()
+        .describe("The business ID that owns the source agent."),
+      agent_id: z
+        .string()
+        .describe("The agent ID to duplicate."),
+      new_description: z
+        .string()
+        .min(1)
+        .max(AGENT_LIMITS.DESCRIPTION_MAX)
+        .optional()
+        .describe(
+          "Optional new description for the copy. Defaults to the original description with ' (copy)' appended.",
+        ),
+      enabled: z
+        .boolean()
+        .optional()
+        .describe(
+          "Whether the duplicated agent should be immediately active. Defaults to false (disabled) so you can review before enabling.",
+        ),
+    },
+    async ({ business_id, agent_id, new_description, enabled }) => {
+      try {
+        const copy = await getClient().duplicateAgent(
+          business_id,
+          agent_id,
+          {
+            ...(new_description ? { description: new_description } : {}),
+            ...(enabled !== undefined ? { enabled } : {}),
+          },
+        );
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(copy, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error duplicating agent: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
           isError: true,

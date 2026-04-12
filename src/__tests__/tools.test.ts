@@ -16,6 +16,17 @@ function createMockClient() {
     createAgent: vi.fn(),
     updateAgent: vi.fn(),
     deleteAgent: vi.fn(),
+    duplicateAgent: vi.fn(),
+    // Call Logs
+    listCallLogs: vi.fn(),
+    getCallLog: vi.fn(),
+    // Webhooks
+    listWebhooks: vi.fn(),
+    createWebhook: vi.fn(),
+    updateWebhook: vi.fn(),
+    deleteWebhook: vi.fn(),
+    // Phone Numbers
+    listPhoneNumbers: vi.fn(),
     // Analytics
     getUsage: vi.fn(),
     getUsageSummary: vi.fn(),
@@ -63,11 +74,13 @@ type MockServer = ReturnType<typeof createMockServer>;
 
 // ── Imports (dynamic to avoid ESM issues with mocking) ───────────────
 
-// We import the register functions directly - they accept our mock server
 import { registerBusinessTools } from '../tools/businesses.js';
 import { registerAgentTools } from '../tools/agents.js';
 import { registerAnalyticsTools } from '../tools/analytics.js';
 import { registerAccountTools } from '../tools/account.js';
+import { registerCallTools } from '../tools/calls.js';
+import { registerWebhookTools } from '../tools/webhooks.js';
+import { registerPhoneTools } from '../tools/phones.js';
 
 // ── Tests ────────────────────────────────────────────────────────────
 
@@ -82,6 +95,9 @@ describe('MCP Tools', () => {
 
     registerBusinessTools(server as any, getClient);
     registerAgentTools(server as any, getClient);
+    registerCallTools(server as any, getClient);
+    registerWebhookTools(server as any, getClient);
+    registerPhoneTools(server as any, getClient);
     registerAnalyticsTools(server as any, getClient);
     registerAccountTools(server as any, getClient);
   });
@@ -104,6 +120,26 @@ describe('MCP Tools', () => {
       expect(names).toContain('create_agent');
       expect(names).toContain('update_agent');
       expect(names).toContain('delete_agent');
+      expect(names).toContain('duplicate_agent');
+    });
+
+    it('registers all expected call log tools', () => {
+      const names = server._tools.map((t) => t.name);
+      expect(names).toContain('list_call_logs');
+      expect(names).toContain('get_call_log');
+    });
+
+    it('registers all expected webhook tools', () => {
+      const names = server._tools.map((t) => t.name);
+      expect(names).toContain('list_webhooks');
+      expect(names).toContain('create_webhook');
+      expect(names).toContain('update_webhook');
+      expect(names).toContain('delete_webhook');
+    });
+
+    it('registers phone number tools', () => {
+      const names = server._tools.map((t) => t.name);
+      expect(names).toContain('list_phone_numbers');
     });
 
     it('registers all expected analytics tools', () => {
@@ -122,8 +158,8 @@ describe('MCP Tools', () => {
       expect(names).toContain('revoke_api_key');
     });
 
-    it('registers exactly 18 tools total', () => {
-      expect(server._tools.length).toBe(18);
+    it('registers exactly 26 tools total', () => {
+      expect(server._tools.length).toBe(26);
     });
   });
 
@@ -256,11 +292,22 @@ describe('MCP Tools', () => {
   });
 
   describe('delete_business', () => {
-    it('deletes business and returns success message', async () => {
+    it('requires confirm=true to proceed', async () => {
+      const result = await server.getTool('delete_business')!.handler({
+        business_id: 'biz_1',
+        confirm: false,
+      });
+
+      expect(result.content[0].text).toContain('not confirmed');
+      expect(mockClient.deleteBusiness).not.toHaveBeenCalled();
+    });
+
+    it('deletes business when confirmed', async () => {
       mockClient.deleteBusiness.mockResolvedValue(undefined);
 
       const result = await server.getTool('delete_business')!.handler({
         business_id: 'biz_1',
+        confirm: true,
       });
 
       expect(mockClient.deleteBusiness).toHaveBeenCalledWith('biz_1');
@@ -272,6 +319,7 @@ describe('MCP Tools', () => {
 
       const result = await server.getTool('delete_business')!.handler({
         business_id: 'biz_1',
+        confirm: true,
       });
 
       expect(result.isError).toBe(true);
@@ -391,16 +439,238 @@ describe('MCP Tools', () => {
   });
 
   describe('delete_agent', () => {
-    it('deletes agent and returns success message', async () => {
+    it('requires confirm=true to proceed', async () => {
+      const result = await server.getTool('delete_agent')!.handler({
+        business_id: 'biz_1',
+        agent_id: 'ag_1',
+        confirm: false,
+      });
+
+      expect(result.content[0].text).toContain('not confirmed');
+      expect(result.content[0].text).toContain('enabled=false');
+      expect(mockClient.deleteAgent).not.toHaveBeenCalled();
+    });
+
+    it('deletes agent when confirmed', async () => {
       mockClient.deleteAgent.mockResolvedValue(undefined);
 
       const result = await server.getTool('delete_agent')!.handler({
         business_id: 'biz_1',
         agent_id: 'ag_1',
+        confirm: true,
       });
 
       expect(mockClient.deleteAgent).toHaveBeenCalledWith('biz_1', 'ag_1');
       expect(result.content[0].text).toContain('deleted successfully');
+    });
+  });
+
+  describe('duplicate_agent', () => {
+    it('duplicates an agent with defaults', async () => {
+      const copy = { agent_id: 'ag_copy', description: 'FAQ (copy)' };
+      mockClient.duplicateAgent.mockResolvedValue(copy);
+
+      const result = await server.getTool('duplicate_agent')!.handler({
+        business_id: 'biz_1',
+        agent_id: 'ag_1',
+      });
+
+      expect(mockClient.duplicateAgent).toHaveBeenCalledWith('biz_1', 'ag_1', {});
+      expect(JSON.parse(result.content[0].text)).toEqual(copy);
+    });
+
+    it('duplicates with custom description and enabled', async () => {
+      mockClient.duplicateAgent.mockResolvedValue({ agent_id: 'ag_copy2' });
+
+      await server.getTool('duplicate_agent')!.handler({
+        business_id: 'biz_1',
+        agent_id: 'ag_1',
+        new_description: 'Spanish FAQ agent',
+        enabled: true,
+      });
+
+      expect(mockClient.duplicateAgent).toHaveBeenCalledWith('biz_1', 'ag_1', {
+        description: 'Spanish FAQ agent',
+        enabled: true,
+      });
+    });
+
+    it('returns error on failure', async () => {
+      mockClient.duplicateAgent.mockRejectedValue(new Error('Not found'));
+
+      const result = await server.getTool('duplicate_agent')!.handler({
+        business_id: 'biz_1',
+        agent_id: 'ag_bad',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Not found');
+    });
+  });
+
+  // ── Call log tools ───────────────────────────────────────────────
+  describe('list_call_logs', () => {
+    it('returns paginated call logs', async () => {
+      const data = {
+        calls: [{ call_id: 'call_1', status: 'completed' }],
+        next_cursor: 'abc',
+      };
+      mockClient.listCallLogs.mockResolvedValue(data);
+
+      const result = await server.getTool('list_call_logs')!.handler({
+        business_id: 'biz_1',
+        start_date: '2026-01-01',
+        status: 'completed',
+        limit: 10,
+      });
+
+      expect(mockClient.listCallLogs).toHaveBeenCalledWith('biz_1', {
+        start_date: '2026-01-01',
+        end_date: undefined,
+        status: 'completed',
+        agent_id: undefined,
+        limit: 10,
+        cursor: undefined,
+      });
+      expect(JSON.parse(result.content[0].text)).toEqual(data);
+    });
+
+    it('returns error on failure', async () => {
+      mockClient.listCallLogs.mockRejectedValue(new Error('Forbidden'));
+
+      const result = await server.getTool('list_call_logs')!.handler({
+        business_id: 'biz_1',
+      });
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('get_call_log', () => {
+    it('returns call details', async () => {
+      const call = { call_id: 'call_1', duration_seconds: 120, status: 'completed' };
+      mockClient.getCallLog.mockResolvedValue(call);
+
+      const result = await server.getTool('get_call_log')!.handler({
+        business_id: 'biz_1',
+        call_id: 'call_1',
+      });
+
+      expect(mockClient.getCallLog).toHaveBeenCalledWith('biz_1', 'call_1');
+      expect(JSON.parse(result.content[0].text)).toEqual(call);
+    });
+  });
+
+  // ── Webhook tools ────────────────────────────────────────────────
+  describe('list_webhooks', () => {
+    it('returns webhooks for a business', async () => {
+      const hooks = [{ webhook_id: 'wh_1', url: 'https://example.com/hook' }];
+      mockClient.listWebhooks.mockResolvedValue(hooks);
+
+      const result = await server.getTool('list_webhooks')!.handler({
+        business_id: 'biz_1',
+      });
+
+      expect(mockClient.listWebhooks).toHaveBeenCalledWith('biz_1');
+      expect(JSON.parse(result.content[0].text)).toEqual(hooks);
+    });
+  });
+
+  describe('create_webhook', () => {
+    it('creates a webhook', async () => {
+      const hook = { webhook_id: 'wh_new', url: 'https://example.com/hook' };
+      mockClient.createWebhook.mockResolvedValue(hook);
+
+      const result = await server.getTool('create_webhook')!.handler({
+        business_id: 'biz_1',
+        url: 'https://example.com/hook',
+        events: ['call.completed', 'call.missed'],
+      });
+
+      expect(mockClient.createWebhook).toHaveBeenCalledWith('biz_1', {
+        url: 'https://example.com/hook',
+        events: ['call.completed', 'call.missed'],
+        enabled: undefined,
+      });
+      expect(JSON.parse(result.content[0].text)).toEqual(hook);
+    });
+
+    it('returns error on failure', async () => {
+      mockClient.createWebhook.mockRejectedValue(new Error('Invalid URL'));
+
+      const result = await server.getTool('create_webhook')!.handler({
+        business_id: 'biz_1',
+        url: 'not-a-url',
+        events: ['call.completed'],
+      });
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('update_webhook', () => {
+    it('updates a webhook', async () => {
+      const hook = { webhook_id: 'wh_1', enabled: false };
+      mockClient.updateWebhook.mockResolvedValue(hook);
+
+      const result = await server.getTool('update_webhook')!.handler({
+        business_id: 'biz_1',
+        webhook_id: 'wh_1',
+        enabled: false,
+      });
+
+      expect(mockClient.updateWebhook).toHaveBeenCalledWith('biz_1', 'wh_1', {
+        url: undefined,
+        events: undefined,
+        enabled: false,
+      });
+      expect(result.isError).toBeUndefined();
+    });
+  });
+
+  describe('delete_webhook', () => {
+    it('requires confirm=true to proceed', async () => {
+      const result = await server.getTool('delete_webhook')!.handler({
+        business_id: 'biz_1',
+        webhook_id: 'wh_1',
+        confirm: false,
+      });
+
+      expect(result.content[0].text).toContain('not confirmed');
+      expect(mockClient.deleteWebhook).not.toHaveBeenCalled();
+    });
+
+    it('deletes webhook when confirmed', async () => {
+      mockClient.deleteWebhook.mockResolvedValue(undefined);
+
+      const result = await server.getTool('delete_webhook')!.handler({
+        business_id: 'biz_1',
+        webhook_id: 'wh_1',
+        confirm: true,
+      });
+
+      expect(mockClient.deleteWebhook).toHaveBeenCalledWith('biz_1', 'wh_1');
+      expect(result.content[0].text).toContain('deleted successfully');
+    });
+  });
+
+  // ── Phone number tools ──────────────────────────────────────────
+  describe('list_phone_numbers', () => {
+    it('returns phone numbers', async () => {
+      const numbers = [{ phone_number: '+15551234567', status: 'active' }];
+      mockClient.listPhoneNumbers.mockResolvedValue(numbers);
+
+      const result = await server.getTool('list_phone_numbers')!.handler({});
+
+      expect(JSON.parse(result.content[0].text)).toEqual(numbers);
+    });
+
+    it('returns error on failure', async () => {
+      mockClient.listPhoneNumbers.mockRejectedValue(new Error('Forbidden'));
+
+      const result = await server.getTool('list_phone_numbers')!.handler({});
+
+      expect(result.isError).toBe(true);
     });
   });
 
@@ -534,11 +804,22 @@ describe('MCP Tools', () => {
   });
 
   describe('revoke_api_key', () => {
-    it('revokes an API key by prefix', async () => {
+    it('requires confirm=true to proceed', async () => {
+      const result = await server.getTool('revoke_api_key')!.handler({
+        prefix: 'sk_old',
+        confirm: false,
+      });
+
+      expect(result.content[0].text).toContain('not confirmed');
+      expect(mockClient.revokeApiKey).not.toHaveBeenCalled();
+    });
+
+    it('revokes an API key when confirmed', async () => {
       mockClient.revokeApiKey.mockResolvedValue(undefined);
 
       const result = await server.getTool('revoke_api_key')!.handler({
         prefix: 'sk_old',
+        confirm: true,
       });
 
       expect(mockClient.revokeApiKey).toHaveBeenCalledWith('sk_old');
@@ -550,6 +831,7 @@ describe('MCP Tools', () => {
 
       const result = await server.getTool('revoke_api_key')!.handler({
         prefix: 'sk_missing',
+        confirm: true,
       });
 
       expect(result.isError).toBe(true);
