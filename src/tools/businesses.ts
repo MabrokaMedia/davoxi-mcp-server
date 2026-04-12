@@ -74,12 +74,46 @@ export function registerBusinessTools(
     },
   );
 
+  // ── Shared zod schemas ─────────────────────────────────────────── //
+  const timeWindowSchema = z.object({
+    days: z
+      .array(z.number().int().min(0).max(6))
+      .min(1)
+      .describe("Days of week: 0 = Sunday, 1 = Monday, … 6 = Saturday."),
+    start: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .describe("Start time in HH:MM format (24h), e.g. '09:00'."),
+    end: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .describe("End time in HH:MM format (24h), e.g. '17:00'."),
+  });
+
+  const businessHoursSchema = z
+    .object({
+      timezone: z
+        .string()
+        .describe("IANA timezone (e.g. 'America/New_York', 'Europe/Paris')."),
+      windows: z
+        .array(timeWindowSchema)
+        .max(7)
+        .describe(
+          "Time windows when the business is open. E.g. Mon-Fri 09:00-17:00. Multiple windows for different day groups.",
+        ),
+    })
+    .nullable()
+    .optional()
+    .describe(
+      "Business opening hours. Set to null for 24/7 (always open). When set, callers outside these hours will be told the business is closed.",
+    );
+
   // ── create_business ──────────────────────────────────────────────── //
   server.tool(
     "create_business",
     `Create a new business on Davoxi. A business represents a company or organization that uses AI voice agents to handle phone calls. Each business has its own phone numbers, voice configuration, and set of specialist agents.
 
-After creating a business, you can add specialist agents to it using the create_agent tool.`,
+After creating a business, you can add specialist agents to it using the create_agent tool. By default, the business is available 24/7.`,
     {
       name: z
         .string()
@@ -127,35 +161,42 @@ After creating a business, you can add specialist agents to it using the create_
         .describe(
           "Maximum number of specialist agents that can be invoked in a single conversation turn. Higher values allow more complex multi-step handling.",
         ),
+      business_hours: businessHoursSchema,
     },
     async (params) => {
       try {
-        const body: Parameters<DavoxiClient["createBusiness"]>[0] = {
+        const body: Record<string, unknown> = {
           name: params.name,
         };
         if (params.phone_numbers !== undefined) body.phone_numbers = params.phone_numbers;
 
         if (params.voice !== undefined || params.language !== undefined || params.personality_prompt !== undefined) {
-          body.voice_config = {};
-          if (params.voice !== undefined) body.voice_config.voice = params.voice;
-          if (params.language !== undefined) body.voice_config.language = params.language;
+          const vc: Partial<VoiceConfig> = {};
+          if (params.voice !== undefined) vc.voice = params.voice;
+          if (params.language !== undefined) vc.language = params.language;
           if (params.personality_prompt !== undefined)
-            body.voice_config.personality_prompt = params.personality_prompt;
+            vc.personality_prompt = params.personality_prompt;
+          body.voice_config = vc;
         }
 
         if (
           params.temperature !== undefined ||
           params.max_specialists_per_turn !== undefined
         ) {
-          body.master_config = {};
+          const mc: Partial<MasterConfig> = {};
           if (params.temperature !== undefined)
-            body.master_config.temperature = params.temperature;
+            mc.temperature = params.temperature;
           if (params.max_specialists_per_turn !== undefined)
-            body.master_config.max_specialists_per_turn =
+            mc.max_specialists_per_turn =
               params.max_specialists_per_turn;
+          body.master_config = mc;
         }
 
-        const business = await getClient().createBusiness(body);
+        if (params.business_hours !== undefined) {
+          body.business_hours = params.business_hours;
+        }
+
+        const business = await getClient().createBusiness(body as unknown as Parameters<DavoxiClient["createBusiness"]>[0]);
         return {
           content: [
             {
@@ -181,7 +222,7 @@ After creating a business, you can add specialist agents to it using the create_
   // ── update_business ──────────────────────────────────────────────── //
   server.tool(
     "update_business",
-    "Updates a business. Sends a PUT request - only provided fields will be updated. You can change its name, phone numbers, voice configuration (voice model, language, personality), or master configuration (temperature, max specialists).",
+    "Updates a business. Sends a PUT request - only provided fields will be updated. You can change its name, phone numbers, voice configuration (voice model, language, personality), master configuration (temperature, max specialists), or business hours.",
     {
       business_id: z
         .string()
@@ -218,10 +259,11 @@ After creating a business, you can add specialist agents to it using the create_
         .min(1)
         .optional()
         .describe("New max specialists per turn."),
+      business_hours: businessHoursSchema,
     },
     async (params) => {
       try {
-        const data: Parameters<DavoxiClient["updateBusiness"]>[1] = {};
+        const data: Record<string, unknown> = {};
         if (params.name !== undefined) data.name = params.name;
         if (params.phone_numbers !== undefined) data.phone_numbers = params.phone_numbers;
 
@@ -243,9 +285,13 @@ After creating a business, you can add specialist agents to it using the create_
           data.master_config = mc;
         }
 
+        if (params.business_hours !== undefined) {
+          data.business_hours = params.business_hours;
+        }
+
         const business = await getClient().updateBusiness(
           params.business_id,
-          data,
+          data as Parameters<DavoxiClient["updateBusiness"]>[1],
         );
         return {
           content: [
@@ -261,6 +307,55 @@ After creating a business, you can add specialist agents to it using the create_
             {
               type: "text" as const,
               text: `Error updating business: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── set_business_hours ──────────────────────────────────────────── //
+  server.tool(
+    "set_business_hours",
+    `Set business opening hours for a Davoxi business. Controls when the AI agent is available to take calls. Outside business hours, callers will be told the business is closed.
+
+Examples:
+- 24/7: set business_hours to null
+- Mon-Fri 9am-5pm: { timezone: "America/New_York", windows: [{ days: [1,2,3,4,5], start: "09:00", end: "17:00" }] }
+- Weekdays 9-6 + Saturday 10-4: two windows with different day arrays`,
+    {
+      business_id: z
+        .string()
+        .describe("The unique identifier of the business."),
+      business_hours: businessHoursSchema.describe(
+        "Opening hours. Set to null for 24/7 availability. Otherwise provide timezone and time windows.",
+      ),
+    },
+    async ({ business_id, business_hours }) => {
+      try {
+        const business = await getClient().updateBusiness(
+          business_id,
+          { business_hours } as Parameters<DavoxiClient["updateBusiness"]>[1],
+        );
+        const status =
+          business_hours === null || business_hours === undefined
+            ? "24/7 (always open)"
+            : `${business_hours.windows.length} time window(s) in ${business_hours.timezone}`;
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Business hours updated: ${status}\n\n${JSON.stringify(business, null, 2)}`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error setting business hours: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
           isError: true,
