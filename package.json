@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@davoxi/client": "github:MabrokaMedia/davoxi-client",
-    "@davoxi/validation": "file:../packages/validation",
+    "@davoxi/validation": "github:MabrokaMedia/davoxi-validation",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "zod": "^3.24.2"
   },
