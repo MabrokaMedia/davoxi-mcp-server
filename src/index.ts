@@ -19,6 +19,7 @@ import { registerAccountTools } from "./tools/account.js";
 import { registerCallTools } from "./tools/calls.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerPhoneTools } from "./tools/phones.js";
+import { registerCallerTools } from "./tools/callers.js";
 import { loadMcpCredentials } from "./auth/credentials.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -102,6 +103,10 @@ export function createServer(): McpServer {
   registerBusinessTools(server, getClient);
   registerAgentTools(server, getClient);
   registerCallTools(server, getClient);
+  registerCallerTools(server, {
+    apiKey,
+    apiUrl: apiUrl ?? "https://api.davoxi.com",
+  });
   registerWebhookTools(server, getClient);
   registerPhoneTools(server, getClient);
   registerAnalyticsTools(server, getClient);
