@@ -260,6 +260,12 @@ After creating a business, you can add specialist agents to it using the create_
         .optional()
         .describe("New max specialists per turn."),
       business_hours: businessHoursSchema,
+      paused: z
+        .boolean()
+        .optional()
+        .describe(
+          "Set to true to temporarily pause the business (callers hear 'temporarily unavailable'). Set to false to resume.",
+        ),
     },
     async (params) => {
       try {
@@ -287,6 +293,10 @@ After creating a business, you can add specialist agents to it using the create_
 
         if (params.business_hours !== undefined) {
           data.business_hours = params.business_hours;
+        }
+
+        if (params.paused !== undefined) {
+          data.paused = params.paused;
         }
 
         const business = await getClient().updateBusiness(
@@ -356,6 +366,80 @@ Examples:
             {
               type: "text" as const,
               text: `Error setting business hours: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── pause_business ───────────────────────────────────────────────── //
+  server.tool(
+    "pause_business",
+    "Temporarily pause a business. Incoming calls will hear a polite 'temporarily unavailable' message and hang up. All configuration, agents, phone routing, and settings are preserved. Use resume_business to reactivate.",
+    {
+      business_id: z
+        .string()
+        .describe("The unique identifier of the business to pause."),
+    },
+    async ({ business_id }) => {
+      try {
+        const business = await getClient().updateBusiness(
+          business_id,
+          { paused: true } as Parameters<DavoxiClient["updateBusiness"]>[1],
+        );
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Business "${business_id}" is now paused. Incoming calls will hear a "temporarily unavailable" message.\n\n${JSON.stringify(business, null, 2)}`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error pausing business: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── resume_business ─────────────────────────────────────────────── //
+  server.tool(
+    "resume_business",
+    "Resume a paused business. The AI agent will start taking calls again immediately. All configuration is preserved from before the pause.",
+    {
+      business_id: z
+        .string()
+        .describe("The unique identifier of the business to resume."),
+    },
+    async ({ business_id }) => {
+      try {
+        const business = await getClient().updateBusiness(
+          business_id,
+          { paused: false } as Parameters<DavoxiClient["updateBusiness"]>[1],
+        );
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Business "${business_id}" is now active and taking calls.\n\n${JSON.stringify(business, null, 2)}`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error resuming business: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
           isError: true,

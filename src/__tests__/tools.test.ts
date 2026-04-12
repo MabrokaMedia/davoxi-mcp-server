@@ -158,8 +158,8 @@ describe('MCP Tools', () => {
       expect(names).toContain('revoke_api_key');
     });
 
-    it('registers exactly 27 tools total', () => {
-      expect(server._tools.length).toBe(27);
+    it('registers exactly 29 tools total', () => {
+      expect(server._tools.length).toBe(29);
     });
   });
 
