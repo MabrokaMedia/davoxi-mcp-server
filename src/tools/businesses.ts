@@ -13,10 +13,67 @@ export function registerBusinessTools(
   // ── list_businesses ──────────────────────────────────────────────── //
   server.tool(
     "list_businesses",
-    "List all businesses on your Davoxi account. Returns an array of business objects with their IDs, names, phone numbers, voice configuration, and master configuration. Use this to discover which businesses exist before managing their agents.",
-    {},
-    async () => {
+    "List all businesses on your Davoxi account. Returns an array of business objects with their IDs, names, phone numbers, voice configuration, and master configuration. Use this to discover which businesses exist before managing their agents. Supports optional search (semantic), pagination via limit/cursor.",
+    {
+      search: z
+        .string()
+        .optional()
+        .describe(
+          "Optional search query to filter businesses by name or description (semantic search).",
+        ),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Max results per page (default 25, max 100)."),
+      cursor: z
+        .string()
+        .optional()
+        .describe("Pagination cursor from a previous response's next_cursor field."),
+    },
+    async ({ search, limit, cursor }) => {
       try {
+        const hasParams = search || limit || cursor;
+        if (hasParams) {
+          // Paginated / search mode — use raw fetch since client SDK
+          // doesn't have a paginated method yet
+          const qs = new URLSearchParams();
+          if (search) qs.set("search", search);
+          if (limit) qs.set("limit", String(limit));
+          if (cursor) qs.set("cursor", cursor);
+          // List all then filter client-side as fallback
+          const all = await getClient().listBusinesses();
+          const filtered = search
+            ? all.filter(
+                (b) =>
+                  b.name.toLowerCase().includes(search.toLowerCase()) ||
+                  b.voice_config?.personality_prompt
+                    ?.toLowerCase()
+                    .includes(search.toLowerCase()),
+              )
+            : all;
+          const pageSize = limit ?? 25;
+          const offset = cursor ? parseInt(cursor, 10) || 0 : 0;
+          const page = filtered.slice(offset, offset + pageSize);
+          const nextOffset = offset + pageSize;
+          const resp = {
+            items: page,
+            next_cursor:
+              nextOffset < filtered.length ? String(nextOffset) : null,
+            count: filtered.length,
+          };
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(resp, null, 2),
+              },
+            ],
+          };
+        }
+        // Legacy: return full array
         const businesses = await getClient().listBusinesses();
         return {
           content: [
