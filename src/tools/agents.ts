@@ -8,6 +8,7 @@ import type { DavoxiClient } from "@davoxi/client";
 import {
   AGENT_LIMITS,
   toolDefinitionSchema,
+  agentPermissionsSchema,
 } from "@davoxi/validation";
 
 export function registerAgentTools(
@@ -148,6 +149,9 @@ Example: An appointment-booking agent might have a system prompt like "You help 
         .describe(
           "Whether this agent is active and available for routing. Defaults to true. Set to false to disable without deleting.",
         ),
+      permissions: agentPermissionsSchema.optional().describe(
+        "Permission configuration for the agent. Controls tool access, memory scopes, PII handling, budgets, and cross-org policy.",
+      ),
     },
     async (params) => {
       try {
@@ -160,6 +164,7 @@ Example: An appointment-booking agent might have a system prompt like "You help 
           body.knowledge_sources = params.knowledge_sources;
         if (params.trigger_tags !== undefined) body.trigger_tags = params.trigger_tags;
         if (params.enabled !== undefined) body.enabled = params.enabled;
+        if (params.permissions !== undefined) body.permissions = params.permissions;
 
         const agent = await getClient().createAgent(params.business_id, body);
         return {
@@ -227,6 +232,9 @@ Example: An appointment-booking agent might have a system prompt like "You help 
         .boolean()
         .optional()
         .describe("Set to false to disable the agent, true to re-enable."),
+      permissions: agentPermissionsSchema.optional().describe(
+        "Updated permission configuration. Replaces the entire permissions object. Pass null to clear (use platform defaults).",
+      ),
     },
     async (params) => {
       try {
@@ -241,6 +249,7 @@ Example: An appointment-booking agent might have a system prompt like "You help 
         if (params.trigger_tags !== undefined)
           data.trigger_tags = params.trigger_tags;
         if (params.enabled !== undefined) data.enabled = params.enabled;
+        if (params.permissions !== undefined) data.permissions = params.permissions;
 
         const agent = await getClient().updateAgent(
           params.business_id,
