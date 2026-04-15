@@ -20,6 +20,7 @@ import { registerCallTools } from "./tools/calls.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerPhoneTools } from "./tools/phones.js";
 import { registerCallerTools } from "./tools/callers.js";
+import { registerCredentialTools } from "./tools/credentials.js";
 import { loadMcpCredentials } from "./auth/credentials.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -111,6 +112,7 @@ export function createServer(): McpServer {
   registerPhoneTools(server, getClient);
   registerAnalyticsTools(server, getClient);
   registerAccountTools(server, getClient);
+  registerCredentialTools(server, getClient);
 
   return server;
 }
