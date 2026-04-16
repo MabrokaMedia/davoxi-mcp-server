@@ -37,6 +37,9 @@ function createMockClient() {
     listApiKeys: vi.fn(),
     createApiKey: vi.fn(),
     revokeApiKey: vi.fn(),
+    // Credentials
+    listToolCredentials: vi.fn(),
+    setToolCredential: vi.fn(),
   };
 }
 
@@ -81,6 +84,7 @@ import { registerAccountTools } from '../tools/account.js';
 import { registerCallTools } from '../tools/calls.js';
 import { registerWebhookTools } from '../tools/webhooks.js';
 import { registerPhoneTools } from '../tools/phones.js';
+import { registerCredentialTools } from '../tools/credentials.js';
 
 // ── Tests ────────────────────────────────────────────────────────────
 
@@ -100,6 +104,7 @@ describe('MCP Tools', () => {
     registerPhoneTools(server as any, getClient);
     registerAnalyticsTools(server as any, getClient);
     registerAccountTools(server as any, getClient);
+    registerCredentialTools(server as any, getClient);
   });
 
   // ── Registration ─────────────────────────────────────────────────
@@ -158,8 +163,14 @@ describe('MCP Tools', () => {
       expect(names).toContain('revoke_api_key');
     });
 
-    it('registers exactly 29 tools total', () => {
-      expect(server._tools.length).toBe(29);
+    it('registers credential tools', () => {
+      const names = server._tools.map((t) => t.name);
+      expect(names).toContain('list_tool_credentials');
+      expect(names).toContain('set_tool_credential');
+    });
+
+    it('registers exactly 31 tools total', () => {
+      expect(server._tools.length).toBe(31);
     });
   });
 
@@ -836,6 +847,73 @@ describe('MCP Tools', () => {
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Key not found');
+    });
+  });
+
+  // ── Credential tools ─────────────────────────────────────────────
+  describe('list_tool_credentials', () => {
+    it('returns credential list on success', async () => {
+      const creds = [
+        { key_name: 'ticketmaster', ssm_path: '/ai-phone-agent/tools/ticketmaster', has_value: true, description: 'Ticketmaster API key' },
+        { key_name: 'openweathermap', ssm_path: '/ai-phone-agent/tools/openweathermap', has_value: false, description: 'OpenWeatherMap API key' },
+      ];
+      mockClient.listToolCredentials.mockResolvedValue(creds);
+
+      const result = await server.getTool('list_tool_credentials')!.handler({});
+
+      expect(mockClient.listToolCredentials).toHaveBeenCalled();
+      expect(result.isError).toBeUndefined();
+      expect(JSON.parse(result.content[0].text)).toEqual(creds);
+    });
+
+    it('returns error response on failure', async () => {
+      mockClient.listToolCredentials.mockRejectedValue(new Error('Unauthorized'));
+
+      const result = await server.getTool('list_tool_credentials')!.handler({});
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Unauthorized');
+    });
+  });
+
+  describe('set_tool_credential', () => {
+    it('stores a valid credential and returns confirmation', async () => {
+      mockClient.setToolCredential.mockResolvedValue(undefined);
+
+      const result = await server.getTool('set_tool_credential')!.handler({
+        key_name: 'ticketmaster',
+        value: 'tk_live_abc123',
+      });
+
+      expect(mockClient.setToolCredential).toHaveBeenCalledWith('ticketmaster', 'tk_live_abc123');
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('ticketmaster');
+      expect(result.content[0].text).toContain('stored');
+    });
+
+    it('returns error response on failure', async () => {
+      mockClient.setToolCredential.mockRejectedValue(new Error('Forbidden'));
+
+      const result = await server.getTool('set_tool_credential')!.handler({
+        key_name: 'openweathermap',
+        value: 'owm_secret',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Forbidden');
+    });
+
+    it('does not echo the secret value back in the success response', async () => {
+      mockClient.setToolCredential.mockResolvedValue(undefined);
+
+      const result = await server.getTool('set_tool_credential')!.handler({
+        key_name: 'alpha_vantage',
+        value: 'super_secret_api_key_12345',
+      });
+
+      expect(result.isError).toBeUndefined();
+      // The credential value must not appear in the response to avoid accidental logging
+      expect(result.content[0].text).not.toContain('super_secret_api_key_12345');
     });
   });
 
