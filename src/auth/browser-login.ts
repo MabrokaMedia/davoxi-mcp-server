@@ -65,7 +65,22 @@ function successHtml(): string {
 </html>`;
 }
 
+/**
+ * Escape a string for safe HTML interpolation.
+ * Prevents XSS when error messages include user-controlled or server-controlled text.
+ * Exported for unit-testing purposes.
+ */
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function errorHtml(message: string): string {
+  const safeMessage = escapeHtml(message);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -83,7 +98,7 @@ function errorHtml(message: string): string {
   <div class="card">
     <div class="icon">&#10007;</div>
     <h1>Authorization Failed</h1>
-    <p>${message}</p>
+    <p>${safeMessage}</p>
   </div>
 </body>
 </html>`;
