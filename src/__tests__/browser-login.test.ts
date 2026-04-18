@@ -1,7 +1,44 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import http from "http";
+import { escapeHtml } from "../auth/browser-login.js";
 
 vi.mock("child_process", () => ({ execSync: vi.fn() }));
+
+// ---------------------------------------------------------------------------
+// escapeHtml — XSS prevention
+// ---------------------------------------------------------------------------
+
+describe("escapeHtml", () => {
+  it("returns plain text unchanged", () => {
+    expect(escapeHtml("Authorization cancelled.")).toBe("Authorization cancelled.");
+  });
+
+  it("escapes < and > characters", () => {
+    expect(escapeHtml("<script>alert(1)</script>")).toBe(
+      "&lt;script&gt;alert(1)&lt;/script&gt;",
+    );
+  });
+
+  it("escapes & character", () => {
+    expect(escapeHtml("foo & bar")).toBe("foo &amp; bar");
+  });
+
+  it("escapes double-quote character", () => {
+    expect(escapeHtml('say "hello"')).toBe("say &quot;hello&quot;");
+  });
+
+  it("escapes single-quote character", () => {
+    expect(escapeHtml("it's here")).toBe("it&#39;s here");
+  });
+
+  it("escapes a realistic XSS payload from err.message", () => {
+    const payload = `"><img src=x onerror="alert('xss')">`;
+    const escaped = escapeHtml(payload);
+    expect(escaped).not.toContain("<");
+    expect(escaped).not.toContain(">");
+    expect(escaped).not.toContain('"');
+  });
+});
 
 async function startAndGetEndpoint(): Promise<{
   port: number;
