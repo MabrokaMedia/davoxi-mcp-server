@@ -11,26 +11,27 @@
  *
  * # Backend endpoints
  *
- * | Method | Path                                 | Helper        |
- * |--------|--------------------------------------|---------------|
- * | GET    | /api/orgs/{org_id}/tools             | `list_tools`  |
- * | POST   | /api/orgs/{org_id}/tools             | `create_tool` |
- * | GET    | /api/orgs/{org_id}/tools/{tool_id}   | `get_tool`    |
- * | PUT    | /api/orgs/{org_id}/tools/{tool_id}   | `update_tool` |
- * | DELETE | /api/orgs/{org_id}/tools/{tool_id}   | `delete_tool` |
+ * | Method | Path                       | Helper        |
+ * |--------|----------------------------|---------------|
+ * | GET    | /tools                     | `list_tools`  |
+ * | POST   | /tools                     | `create_tool` |
+ * | GET    | /tools/{tool_id}           | `get_tool`    |
+ * | PUT    | /tools/{tool_id}           | `update_tool` |
+ * | DELETE | /tools/{tool_id}           | `delete_tool` |
+ *
+ * The org scope is implicit in the bearer token — the API key the
+ * MCP authenticates with belongs to one org and the backend filters
+ * automatically. Multi-org MCP installs need a separate token + a
+ * fresh MCP session per org for now.
  *
  * Implemented as raw `fetch` against the same base URL the
  * `@davoxi/client` uses, because the client doesn't expose a request
- * passthrough and the org-scoped tool routes haven't been added to
- * its method surface yet (tracked separately).
+ * passthrough and these tool routes haven't been added to its
+ * method surface yet (tracked separately).
  *
  * Auth: same env variable the rest of the MCP reads
  * (`DAVOXI_API_KEY`, falls back to `~/.davoxi/mcp.json`). Base URL
  * comes from `DAVOXI_API_URL` (defaults to `https://api.davoxi.com`).
- *
- * The `org_id` is the first path segment for every endpoint; the MCP
- * accepts it as an explicit parameter so a single MCP install can
- * manage multiple orgs without re-auth.
  */
 
 import { z } from "zod";
@@ -179,20 +180,10 @@ export function registerToolRegistryTools(server: McpServer) {
       "`attach_tool_to_agent`, or to audit which tools an org has " +
       "active. Pair with `get_tool` for the full row including the " +
       "`input_schema` / `execution.endpoint` / `execution.body_template`.",
-    {
-      org_id: z
-        .string()
-        .min(1)
-        .describe(
-          "The org owning the registry (e.g. `org_a0cc65dbbb19`). Must match the API key's org.",
-        ),
-    },
-    async ({ org_id }) => {
+    {},
+    async () => {
       try {
-        const result = await davoxiFetch<{ tools: unknown[] }>(
-          "GET",
-          `/api/orgs/${enc(org_id)}/tools`,
-        );
+        const result = await davoxiFetch<unknown>("GET", `/tools`);
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         };
@@ -222,7 +213,6 @@ export function registerToolRegistryTools(server: McpServer) {
       "the runtime executor consumes; what you see here is what gets " +
       "called when an agent invokes the tool.",
     {
-      org_id: z.string().min(1),
       tool_id: z
         .string()
         .min(1)
@@ -230,11 +220,11 @@ export function registerToolRegistryTools(server: McpServer) {
           "The `tool_id` from `list_tools` (e.g. `tool_f3b670cd...zendit_send_topup`).",
         ),
     },
-    async ({ org_id, tool_id }) => {
+    async ({ tool_id }) => {
       try {
         const tool = await davoxiFetch<unknown>(
           "GET",
-          `/api/orgs/${enc(org_id)}/tools/${enc(tool_id)}`,
+          `/tools/${enc(tool_id)}`,
         );
         return {
           content: [{ type: "text", text: JSON.stringify(tool, null, 2) }],
@@ -263,7 +253,6 @@ export function registerToolRegistryTools(server: McpServer) {
       "`attach_tool_to_agent`. The backend assigns a `tool_id` of the " +
       "form `tool_<hex>` and returns the full saved row.",
     {
-      org_id: z.string().min(1),
       name: z
         .string()
         .min(1)
@@ -307,7 +296,6 @@ export function registerToolRegistryTools(server: McpServer) {
         .default("OrgPrivate"),
     },
     async ({
-      org_id,
       name,
       description,
       category,
@@ -336,7 +324,7 @@ export function registerToolRegistryTools(server: McpServer) {
         }
         const tool = await davoxiFetch<{ tool_id: string }>(
           "POST",
-          `/api/orgs/${enc(org_id)}/tools`,
+          `/tools`,
           body,
         );
         return {
@@ -370,14 +358,13 @@ export function registerToolRegistryTools(server: McpServer) {
     "update_tool",
     "Patch an existing registered tool. Only the fields you pass are " +
       "overwritten; omitted fields keep their stored value. " +
-      "`tool_id`, `org_id`, `scope`, and `origin` are immutable on " +
+      "`tool_id`, `scope`, and `origin` are immutable on " +
       "the backend — to change those, delete + recreate. Use this to " +
       "fix LLM-facing field names in `input_schema`, retarget the " +
       "upstream `execution.endpoint`, sharpen the `description`, or " +
       "set `body_template` when the upstream API uses different " +
       "field names than the LLM-facing schema.",
     {
-      org_id: z.string().min(1),
       tool_id: z.string().min(1),
       name: z.string().min(1).max(100).optional(),
       description: z.string().min(1).max(2000).optional(),
@@ -390,7 +377,6 @@ export function registerToolRegistryTools(server: McpServer) {
       status: z.enum(["Active", "Disabled", "Pending"]).optional(),
     },
     async ({
-      org_id,
       tool_id,
       name,
       description,
@@ -432,7 +418,7 @@ export function registerToolRegistryTools(server: McpServer) {
 
         const tool = await davoxiFetch<unknown>(
           "PUT",
-          `/api/orgs/${enc(org_id)}/tools/${enc(tool_id)}`,
+          `/tools/${enc(tool_id)}`,
           body,
         );
         return {
@@ -463,18 +449,17 @@ export function registerToolRegistryTools(server: McpServer) {
       "attachments via `detach_tool_from_agent` first if you don't want " +
       "noisy run-time failures.",
     {
-      org_id: z.string().min(1),
       tool_id: z.string().min(1),
     },
-    async ({ org_id, tool_id }) => {
+    async ({ tool_id }) => {
       try {
         await davoxiFetch<undefined>(
           "DELETE",
-          `/api/orgs/${enc(org_id)}/tools/${enc(tool_id)}`,
+          `/tools/${enc(tool_id)}`,
         );
         return {
           content: [
-            { type: "text", text: `Deleted tool ${tool_id} from org ${org_id}.` },
+            { type: "text", text: `Deleted tool ${tool_id}.` },
           ],
         };
       } catch (err) {
