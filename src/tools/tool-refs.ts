@@ -11,9 +11,9 @@
  *      schema, and auth all flow from the registry row, not from a copy
  *      embedded on the agent.
  *
- * This replaces the older pattern of embedding a `ToolDefinition` into
- * `AgentDefinition.tools` directly. That path still works as a fallback
- * during the migration window.
+ * This replaces the older pattern of embedding a `ToolDefinition`
+ * into `AgentDefinition.tools` directly; the runtime no longer reads
+ * that field at all.
  */
 
 import { z } from "zod";
@@ -166,8 +166,7 @@ export function registerToolRefTools(
     "List the `tool_refs` currently attached to a specialist agent. " +
       "Each ref is a pointer to a row in the tool-registry; use " +
       "`list_tools` to look up the details of each tool_id. Returns an " +
-      "empty list when the agent is still on the legacy embedded-tools " +
-      "path (check `list_agents` for `tools: [...]` in that case).",
+      "empty list for knowledge-only agents.",
     {
       business_id: z.string().min(1).describe("The owning business's id."),
       agent_id: z.string().min(1).describe("The agent to inspect."),
@@ -181,12 +180,7 @@ export function registerToolRefTools(
             content: [
               {
                 type: "text",
-                text:
-                  `Agent ${agent_id} has no tool_refs attached.` +
-                  (agent.tools && agent.tools.length > 0
-                    ? ` It's still on the legacy embedded-tools path ` +
-                      `(${agent.tools.length} tool${agent.tools.length === 1 ? "" : "s"} in \`tools\`).`
-                    : ""),
+                text: `Agent ${agent_id} has no tool_refs attached (knowledge-only).`,
               },
             ],
           };
