@@ -22,6 +22,7 @@ import { registerPhoneTools } from "./tools/phones.js";
 import { registerCallerTools } from "./tools/callers.js";
 import { registerCredentialTools } from "./tools/credentials.js";
 import { registerToolRefTools } from "./tools/tool-refs.js";
+import { registerToolRegistryTools } from "./tools/tools.js";
 import { loadMcpCredentials } from "./auth/credentials.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -115,6 +116,12 @@ export function createServer(): McpServer {
   registerAccountTools(server, getClient);
   registerCredentialTools(server, getClient);
   registerToolRefTools(server, getClient);
+  // Tool-registry CRUD (`list_tools`, `get_tool`, `create_tool`,
+  // `update_tool`, `delete_tool`). Self-contained — reads
+  // `DAVOXI_API_KEY` and `DAVOXI_API_URL` from env directly because
+  // the org-scoped tool routes haven't been added to `@davoxi/client`'s
+  // method surface yet (tracked separately).
+  registerToolRegistryTools(server);
 
   return server;
 }
