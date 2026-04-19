@@ -125,8 +125,12 @@ function enc(segment: string): string {
 const toolExecutionSchema = z
   .object({
     type: z
-      .enum(["RestApi", "RapidApi", "Internal"])
-      .describe("Execution backend. Almost always `RestApi` for new tools."),
+      .enum(["rest_api", "oauth2_api", "lambda", "internal", "webhook"])
+      .describe(
+        "Execution backend. Canonical snake_case wire values matching " +
+          "the Rust `ExecutionType` enum in `shared::tool_types`. Almost " +
+          "always `rest_api` for new tools.",
+      ),
     method: z
       .enum(["GET", "POST", "PUT", "PATCH", "DELETE"])
       .default("POST")
@@ -154,8 +158,12 @@ const toolExecutionSchema = z
 const toolAuthSchema = z
   .object({
     type: z
-      .enum(["None", "ApiKey", "Bearer", "Basic", "OAuth", "Linked"])
-      .default("None"),
+      .enum(["none", "api_key", "oauth2_user", "oauth2_client"])
+      .default("none")
+      .describe(
+        "Auth strategy — canonical snake_case values matching the Rust " +
+          "`AuthType` enum.",
+      ),
     ssm_path: z.string().optional(),
     header_name: z.string().optional(),
   })
@@ -292,8 +300,14 @@ export function registerToolRegistryTools(server: McpServer) {
       requires_confirmation: z.boolean().default(false),
       cost_involved: z.boolean().default(false),
       scope: z
-        .enum(["OrgPrivate", "OrgPublic", "Global"])
-        .default("OrgPrivate"),
+        .enum(["org_private", "global", "marketplace"])
+        .default("org_private")
+        .describe(
+          "Visibility scope — canonical snake_case values matching the " +
+            "Rust `ToolScope` enum. `org_private` (default) keeps the " +
+            "tool inside the owning org; `global` exposes it platform-" +
+            "wide; `marketplace` is opt-in sharing.",
+        ),
     },
     async ({
       name,
@@ -374,7 +388,13 @@ export function registerToolRegistryTools(server: McpServer) {
       auth: toolAuthSchema.optional(),
       response_template: responseTemplateSchema.optional(),
       requires_confirmation: z.boolean().optional(),
-      status: z.enum(["Active", "Disabled", "Pending"]).optional(),
+      status: z
+        .enum(["active", "pending_review", "disabled", "auto_generated"])
+        .optional()
+        .describe(
+          "Lifecycle status — canonical snake_case values matching the " +
+            "Rust `ToolStatus` enum.",
+        ),
     },
     async ({
       tool_id,
