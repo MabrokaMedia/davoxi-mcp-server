@@ -165,12 +165,52 @@ export function registerBusinessTools(
       "Business opening hours. Set to null for 24/7 (always open). When set, callers outside these hours will be told the business is closed.",
     );
 
+  const networkConfigSchema = z
+    .object({
+      discoverable: z
+        .boolean()
+        .optional()
+        .describe(
+          "Whether the master orchestrator can discover and route to this business when a caller's intent matches one of its categories. Set to true to make the business findable. Omitting network_config entirely leaves this field unset in DDB, which blocks discovery.",
+        ),
+      categories: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Tags describing what this business serves (e.g. ['music','streaming'] for a Spotify proxy, ['rides','transport'] for an Uber proxy). The master orchestrator matches caller intent against these. Empty array = all categories.",
+        ),
+      allowed_methods: z
+        .array(z.enum(["api", "ai", "voice"]))
+        .optional()
+        .describe(
+          "Contact methods other businesses may use to reach this one: 'api' (direct HTTP), 'ai' (AI-to-AI in-process), 'voice' (outbound call). Defaults to ['api','ai'] on the backend.",
+        ),
+      voice_rate_limit_per_hour: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Max inbound voice calls per hour via the broker (default 10)."),
+      total_rate_limit_per_hour: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Max total inbound contacts (all methods) per hour via the broker (default 50)."),
+    })
+    .optional()
+    .describe(
+      "Network-level routing config. Set `discoverable: true` with matching `categories` so the master orchestrator can find this business when a caller's intent matches. Omitting this field leaves the business undiscoverable.",
+    );
+
   // ── create_business ──────────────────────────────────────────────── //
   server.tool(
     "create_business",
     `Create a new business on Davoxi. A business represents a company or organization that uses AI voice agents to handle phone calls. Each business has its own phone numbers, voice configuration, and set of specialist agents.
 
-After creating a business, you can add specialist agents to it using the create_agent tool. By default, the business is available 24/7.`,
+After creating a business, you can add specialist agents to it using the create_agent tool. By default, the business is available 24/7.
+
+IMPORTANT: if this business should be discoverable by the master orchestrator (e.g. a proxy business serving a specific category like "music" or "rides"), set \`network_config\` with \`discoverable: true\` and matching \`categories\`. Omitting network_config leaves the business undiscoverable — the master won't route intent-matched traffic to it.`,
     {
       name: z
         .string()
@@ -219,6 +259,7 @@ After creating a business, you can add specialist agents to it using the create_
           "Maximum number of specialist agents that can be invoked in a single conversation turn. Higher values allow more complex multi-step handling.",
         ),
       business_hours: businessHoursSchema,
+      network_config: networkConfigSchema,
     },
     async (params) => {
       try {
@@ -253,6 +294,10 @@ After creating a business, you can add specialist agents to it using the create_
           body.business_hours = params.business_hours;
         }
 
+        if (params.network_config !== undefined) {
+          body.network_config = params.network_config;
+        }
+
         const business = await getClient().createBusiness(body as unknown as Parameters<DavoxiClient["createBusiness"]>[0]);
         return {
           content: [
@@ -279,7 +324,7 @@ After creating a business, you can add specialist agents to it using the create_
   // ── update_business ──────────────────────────────────────────────── //
   server.tool(
     "update_business",
-    "Updates a business. Sends a PUT request - only provided fields will be updated. You can change its name, phone numbers, voice configuration (voice model, language, personality), master configuration (temperature, max specialists), or business hours.",
+    "Updates a business. Sends a PUT request - only provided fields will be updated. You can change its name, phone numbers, voice configuration (voice model, language, personality), master configuration (temperature, max specialists), business hours, or network_config (discoverability + categories for the master orchestrator).",
     {
       business_id: z
         .string()
@@ -317,6 +362,7 @@ After creating a business, you can add specialist agents to it using the create_
         .optional()
         .describe("New max specialists per turn."),
       business_hours: businessHoursSchema,
+      network_config: networkConfigSchema,
       paused: z
         .boolean()
         .optional()
@@ -350,6 +396,10 @@ After creating a business, you can add specialist agents to it using the create_
 
         if (params.business_hours !== undefined) {
           data.business_hours = params.business_hours;
+        }
+
+        if (params.network_config !== undefined) {
+          data.network_config = params.network_config;
         }
 
         if (params.paused !== undefined) {

@@ -262,6 +262,28 @@ describe('MCP Tools', () => {
       });
     });
 
+    it('passes network_config through to the client', async () => {
+      mockClient.createBusiness.mockResolvedValue({ business_id: 'biz_3' });
+
+      await server.getTool('create_business')!.handler({
+        name: 'MusicCo',
+        network_config: {
+          discoverable: true,
+          categories: ['music', 'streaming'],
+          allowed_methods: ['api', 'ai'],
+        },
+      });
+
+      expect(mockClient.createBusiness).toHaveBeenCalledWith({
+        name: 'MusicCo',
+        network_config: {
+          discoverable: true,
+          categories: ['music', 'streaming'],
+          allowed_methods: ['api', 'ai'],
+        },
+      });
+    });
+
     it('returns error on failure', async () => {
       mockClient.createBusiness.mockRejectedValue(new Error('Validation failed'));
 
@@ -289,6 +311,25 @@ describe('MCP Tools', () => {
         voice_config: { voice: 'shimmer' },
       });
       expect(result.isError).toBeUndefined();
+    });
+
+    it('passes network_config through to the client', async () => {
+      mockClient.updateBusiness.mockResolvedValue({ business_id: 'biz_1' });
+
+      await server.getTool('update_business')!.handler({
+        business_id: 'biz_1',
+        network_config: {
+          discoverable: true,
+          categories: ['music'],
+        },
+      });
+
+      expect(mockClient.updateBusiness).toHaveBeenCalledWith('biz_1', {
+        network_config: {
+          discoverable: true,
+          categories: ['music'],
+        },
+      });
     });
 
     it('returns error on failure', async () => {
