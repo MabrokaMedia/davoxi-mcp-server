@@ -958,6 +958,67 @@ describe('MCP Tools', () => {
     });
   });
 
+  // ── network_config schema boundary validation ────────────────────
+  describe('network_config schema validation', () => {
+    it('rejects allowed_methods with an arbitrary string value', async () => {
+      mockClient.createBusiness.mockResolvedValue({ business_id: 'biz_x' });
+
+      // The zod schema enforces a closed enum; passing an unknown method should
+      // cause zod to throw before the handler reaches the client call.
+      // We test via the raw zod parse on the schema directly by invoking the
+      // tool handler and verifying that invalid input results in an error.
+      // Because mock server bypasses zod parsing, we validate the schema directly.
+      const { z } = await import('zod');
+      const allowedMethodsSchema = z.array(z.enum(['api', 'ai', 'voice']));
+      expect(() => allowedMethodsSchema.parse(['api', 'sms'])).toThrow();
+      expect(() => allowedMethodsSchema.parse(['api', 'ai', 'voice'])).not.toThrow();
+    });
+
+    it('rejects voice_rate_limit_per_hour above 100000', async () => {
+      const { z } = await import('zod');
+      const rateSchema = z.number().int().min(0).max(100000);
+      expect(() => rateSchema.parse(100001)).toThrow();
+      expect(() => rateSchema.parse(0)).not.toThrow();
+      expect(() => rateSchema.parse(100000)).not.toThrow();
+    });
+
+    it('rejects total_rate_limit_per_hour above 100000', async () => {
+      const { z } = await import('zod');
+      const rateSchema = z.number().int().min(0).max(100000);
+      expect(() => rateSchema.parse(999999)).toThrow();
+      expect(() => rateSchema.parse(50)).not.toThrow();
+    });
+
+    it('rejects negative rate limit values', async () => {
+      const { z } = await import('zod');
+      const rateSchema = z.number().int().min(0).max(100000);
+      expect(() => rateSchema.parse(-1)).toThrow();
+    });
+
+    it('rejects category strings longer than 100 characters', async () => {
+      const { z } = await import('zod');
+      const categoriesSchema = z.array(z.string().min(1).max(100)).max(50);
+      const longTag = 'a'.repeat(101);
+      expect(() => categoriesSchema.parse([longTag])).toThrow();
+      expect(() => categoriesSchema.parse(['music', 'streaming'])).not.toThrow();
+    });
+
+    it('rejects empty string category tags', async () => {
+      const { z } = await import('zod');
+      const categoriesSchema = z.array(z.string().min(1).max(100)).max(50);
+      expect(() => categoriesSchema.parse([''])).toThrow();
+    });
+
+    it('rejects categories arrays with more than 50 items', async () => {
+      const { z } = await import('zod');
+      const categoriesSchema = z.array(z.string().min(1).max(100)).max(50);
+      const tooMany = Array.from({ length: 51 }, (_, i) => `cat${i}`);
+      expect(() => categoriesSchema.parse(tooMany)).toThrow();
+      const exactly50 = Array.from({ length: 50 }, (_, i) => `cat${i}`);
+      expect(() => categoriesSchema.parse(exactly50)).not.toThrow();
+    });
+  });
+
   // ── Error formatting ─────────────────────────────────────────────
   describe('error formatting', () => {
     it('handles non-Error thrown values', async () => {

@@ -174,10 +174,11 @@ export function registerBusinessTools(
           "Whether the master orchestrator can discover and route to this business when a caller's intent matches one of its categories. Set to true to make the business findable. Omitting network_config entirely leaves this field unset in DDB, which blocks discovery.",
         ),
       categories: z
-        .array(z.string())
+        .array(z.string().min(1).max(100))
+        .max(50)
         .optional()
         .describe(
-          "Tags describing what this business serves (e.g. ['music','streaming'] for a Spotify proxy, ['rides','transport'] for an Uber proxy). The master orchestrator matches caller intent against these. Empty array = all categories.",
+          "Tags describing what this business serves (e.g. ['music','streaming'] for a Spotify proxy, ['rides','transport'] for an Uber proxy). The master orchestrator matches caller intent against these. Empty array = all categories. Max 50 tags, each up to 100 characters.",
         ),
       allowed_methods: z
         .array(z.enum(["api", "ai", "voice"]))
@@ -189,14 +190,16 @@ export function registerBusinessTools(
         .number()
         .int()
         .min(0)
+        .max(100000)
         .optional()
-        .describe("Max inbound voice calls per hour via the broker (default 10)."),
+        .describe("Max inbound voice calls per hour via the broker (default 10, max 100000)."),
       total_rate_limit_per_hour: z
         .number()
         .int()
         .min(0)
+        .max(100000)
         .optional()
-        .describe("Max total inbound contacts (all methods) per hour via the broker (default 50)."),
+        .describe("Max total inbound contacts (all methods) per hour via the broker (default 50, max 100000)."),
     })
     .optional()
     .describe(
