@@ -141,7 +141,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 | `DAVOXI_API_KEY` | No* | - | Your API key (starts with `sk_`). *Not needed if you used `auth login` |
 | `DAVOXI_API_URL` | No | `https://api.davoxi.com` | Custom API endpoint (must be HTTPS or localhost) |
 
-## Available Tools (26)
+## Available Tools (27)
 
 ### Businesses (5 tools)
 | Tool | Description |
@@ -167,6 +167,11 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 |---|---|
 | `list_call_logs` | List calls with filters: date range, status (completed/missed/failed), agent, pagination |
 | `get_call_log` | Get full call details: transcript, recording URL, duration, summary |
+
+### Agent Testing (1 tool)
+| Tool | Description |
+|---|---|
+| `test_agent_chat` | Send a test message to a deployed business as if you were a real WhatsApp caller and get every reply back. Exercises the full Brain → Master Orchestrator → Specialist code path over the same WebSocket the dashboard test-chat uses — no real Twilio message is sent. Pass the same `caller_id` across calls for multi-turn continuity. |
 
 ### Webhooks (4 tools)
 | Tool | Description |
@@ -234,6 +239,18 @@ You: Create a webhook for business biz_abc123 that sends to
 
 You: List all webhooks for that business to verify
 ```
+
+### Test an agent end-to-end without WhatsApp
+
+```
+You: I just deployed agent agent_xyz on biz_abc123 — try asking it
+     "what's your weekend availability?" and tell me what it replies
+
+You: Now follow up with "great, can I book Saturday at 2pm?" using the
+     same caller_id so it remembers the prior turn
+```
+
+`test_agent_chat` runs through the same Brain → Specialist chain that real Twilio traffic does, so the reply you get back is exactly what a real caller would receive. The Brain may emit a filler ("one moment please…") followed by the Specialist's final answer — both come back in the `replies` array, in order.
 
 ### Duplicate and modify an agent
 
