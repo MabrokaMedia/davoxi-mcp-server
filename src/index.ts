@@ -20,6 +20,7 @@ import { registerCallTools } from "./tools/calls.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerPhoneTools } from "./tools/phones.js";
 import { registerCallerTools } from "./tools/callers.js";
+import { registerCallerAccessTools } from "./tools/caller-access.js";
 import { registerCredentialTools } from "./tools/credentials.js";
 import { registerTestTools } from "./tools/test.js";
 import { registerToolRefTools } from "./tools/tool-refs.js";
@@ -108,6 +109,10 @@ export function createServer(): McpServer {
   registerAgentTools(server, getClient);
   registerCallTools(server, getClient);
   registerCallerTools(server, {
+    apiKey,
+    apiUrl: apiUrl ?? "https://api.davoxi.com",
+  });
+  registerCallerAccessTools(server, {
     apiKey,
     apiUrl: apiUrl ?? "https://api.davoxi.com",
   });
