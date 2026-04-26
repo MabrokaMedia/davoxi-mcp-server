@@ -62,6 +62,11 @@ async function runChatTurn(input: RunChatTurnInput): Promise<ChatTurnResult> {
   const replies: ReplyFrame[] = [];
   const errors: string[] = [];
   let stopReason: ChatTurnResult["stop_reason"] = "total_timeout";
+  // Once finish() runs, further `message` events arriving from the
+  // already-queued recv buffer must be ignored — `ws.close()` does not
+  // drain pending events, so without this guard a server burst of
+  // replies will overflow the max_replies cap.
+  let done = false;
 
   const ws = new WebSocket(input.wsUrl, {
     perMessageDeflate: false,
@@ -76,6 +81,8 @@ async function runChatTurn(input: RunChatTurnInput): Promise<ChatTurnResult> {
     reason: ChatTurnResult["stop_reason"],
     resolve: () => void,
   ) => {
+    if (done) return;
+    done = true;
     stopReason = reason;
     if (quietTimer) clearTimeout(quietTimer);
     if (totalTimer) clearTimeout(totalTimer);
@@ -125,6 +132,7 @@ async function runChatTurn(input: RunChatTurnInput): Promise<ChatTurnResult> {
     });
 
     ws.on("message", (data) => {
+      if (done) return;
       let frame: unknown;
       try {
         frame = JSON.parse(data.toString());
