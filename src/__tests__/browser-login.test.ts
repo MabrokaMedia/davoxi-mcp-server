@@ -2,7 +2,11 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import http from "http";
 import { escapeHtml } from "../auth/browser-login.js";
 
-vi.mock("child_process", () => ({ execSync: vi.fn() }));
+const { mockSpawnSync } = vi.hoisted(() => {
+  const mockSpawnSync = vi.fn().mockReturnValue({ status: 0 });
+  return { mockSpawnSync };
+});
+vi.mock("child_process", () => ({ spawnSync: mockSpawnSync }));
 
 // ---------------------------------------------------------------------------
 // escapeHtml — XSS prevention
@@ -100,6 +104,31 @@ function callbackRequest(
     req.end();
   });
 }
+
+describe("openBrowser — command injection safety", () => {
+  it("passes URL as a discrete argument (not via shell string) so metacharacters cannot escape", async () => {
+    // A URL containing double-quotes and semicolons would execute shell commands
+    // if interpolated into execSync(`open "${url}"`). With spawnSync([url]) they
+    // are passed literally to the child process and never interpreted by a shell.
+    const { browserLogin } = await import("../auth/browser-login.js");
+    const maliciousBase = 'http://127.0.0.1"; echo injected #';
+    const loginPromise = browserLogin({ dashboardUrl: maliciousBase });
+
+    // The mock records the args array passed to spawnSync
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+
+    expect(mockSpawnSync).toHaveBeenCalled();
+    const [_cmd, args] = mockSpawnSync.mock.calls[0];
+    // The full authUrl (containing the malicious base) must appear as a single
+    // element in the args array — not concatenated into a shell string.
+    const urlArg: string = args[args.length - 1];
+    expect(typeof urlArg).toBe("string");
+    expect(urlArg).toContain("echo injected");
+    // No shell was invoked, so "echo injected" was NOT executed — it's just a
+    // literal character sequence in the URL argument.
+    loginPromise.catch(() => {});
+  });
+});
 
 describe("browserLogin — API key prefix validation", () => {
   afterEach(() => {
