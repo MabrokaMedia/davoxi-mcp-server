@@ -21,6 +21,7 @@ import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerPhoneTools } from "./tools/phones.js";
 import { registerCallerTools } from "./tools/callers.js";
 import { registerCredentialTools } from "./tools/credentials.js";
+import { registerTestTools } from "./tools/test.js";
 import { registerToolRefTools } from "./tools/tool-refs.js";
 import { registerToolRegistryTools } from "./tools/tools.js";
 import { loadMcpCredentials } from "./auth/credentials.js";
@@ -115,6 +116,7 @@ export function createServer(): McpServer {
   registerAnalyticsTools(server, getClient);
   registerAccountTools(server, getClient);
   registerCredentialTools(server, getClient);
+  registerTestTools(server, getClient);
   registerToolRefTools(server, getClient);
   // Tool-registry CRUD (`list_tools`, `get_tool`, `create_tool`,
   // `update_tool`, `delete_tool`). Self-contained — reads
