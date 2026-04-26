@@ -131,7 +131,10 @@ describe("caller-access HTTP round-trips", () => {
   });
 
   function jsonResponse(status: number, body: unknown): Response {
-    return new Response(JSON.stringify(body), {
+    // 204 No Content (and 205/304) MUST NOT carry a body per the
+    // Response constructor — use a null body for those status codes.
+    const noBody = status === 204 || status === 205 || status === 304;
+    return new Response(noBody ? null : JSON.stringify(body), {
       status,
       headers: { "Content-Type": "application/json" },
     });
