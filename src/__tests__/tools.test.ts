@@ -599,17 +599,35 @@ describe('MCP Tools', () => {
   });
 
   describe('get_call_log', () => {
-    it('returns call details', async () => {
+    it('returns call details and forwards the supplied date', async () => {
       const call = { call_id: 'call_1', duration_seconds: 120, status: 'completed' };
       mockClient.getCallLog.mockResolvedValue(call);
 
       const result = await server.getTool('get_call_log')!.handler({
         business_id: 'biz_1',
         call_id: 'call_1',
+        date: '2026-04-28',
       });
 
-      expect(mockClient.getCallLog).toHaveBeenCalledWith('biz_1', 'call_1');
+      expect(mockClient.getCallLog).toHaveBeenCalledWith('biz_1', 'call_1', {
+        date: '2026-04-28',
+      });
       expect(JSON.parse(result.content[0].text)).toEqual(call);
+    });
+
+    it("defaults date to today's UTC date when omitted", async () => {
+      const call = { call_id: 'call_1' };
+      mockClient.getCallLog.mockResolvedValue(call);
+
+      await server.getTool('get_call_log')!.handler({
+        business_id: 'biz_1',
+        call_id: 'call_1',
+      });
+
+      const today = new Date().toISOString().slice(0, 10);
+      expect(mockClient.getCallLog).toHaveBeenCalledWith('biz_1', 'call_1', {
+        date: today,
+      });
     });
   });
 

@@ -87,7 +87,9 @@ Use the cursor parameter for pagination — pass the next_cursor value from a pr
   // ── get_call_log ──────────────────────────────────────────────────── //
   server.tool(
     "get_call_log",
-    "Get detailed information about a specific call including transcript, recording URL, duration, which agent handled it, and a summary of the conversation.",
+    `Get detailed information about a specific call including transcript, recording URL, duration, which agent handled it, and a summary of the conversation.
+
+Call logs are partitioned by UTC date in S3, so the upstream API requires the date the call started. Pass it via the \`date\` parameter (YYYY-MM-DD); when omitted, today's UTC date is used.`,
     {
       business_id: z
         .string()
@@ -95,10 +97,23 @@ Use the cursor parameter for pagination — pass the next_cursor value from a pr
       call_id: z
         .string()
         .describe("The unique identifier of the call to retrieve."),
+      date: z
+        .string()
+        .regex(
+          /^\d{4}-\d{2}-\d{2}$/,
+          "date must be YYYY-MM-DD (UTC)",
+        )
+        .optional()
+        .describe(
+          "UTC date the call started (YYYY-MM-DD). Required by the upstream API to locate the call log; defaults to today's UTC date if omitted.",
+        ),
     },
-    async ({ business_id, call_id }) => {
+    async ({ business_id, call_id, date }) => {
       try {
-        const call = await getClient().getCallLog(business_id, call_id);
+        const resolvedDate = date ?? todayUtcDate();
+        const call = await getClient().getCallLog(business_id, call_id, {
+          date: resolvedDate,
+        });
         return {
           content: [
             {
@@ -120,4 +135,8 @@ Use the cursor parameter for pagination — pass the next_cursor value from a pr
       }
     },
   );
+}
+
+function todayUtcDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }
