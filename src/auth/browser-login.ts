@@ -8,7 +8,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { randomBytes } from "crypto";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 
 const DEFAULT_DASHBOARD_URL = "https://app.davoxi.com";
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -25,13 +25,13 @@ function openBrowser(url: string): boolean {
   try {
     switch (process.platform) {
       case "darwin":
-        execSync(`open "${url}"`, { stdio: "ignore" });
+        spawnSync("open", [url], { stdio: "ignore" });
         break;
       case "win32":
-        execSync(`start "" "${url}"`, { stdio: "ignore", shell: "cmd.exe" });
+        spawnSync("cmd.exe", ["/c", "start", "", url], { stdio: "ignore" });
         break;
       default:
-        execSync(`xdg-open "${url}"`, { stdio: "ignore" });
+        spawnSync("xdg-open", [url], { stdio: "ignore" });
         break;
     }
     return true;
