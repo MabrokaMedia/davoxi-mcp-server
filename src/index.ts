@@ -13,6 +13,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { DavoxiClient } from "@davoxi/client";
 import { registerBusinessTools } from "./tools/businesses.js";
+import { registerOrgTools } from "./tools/orgs.js";
 import { registerAgentTools } from "./tools/agents.js";
 import { registerAnalyticsTools } from "./tools/analytics.js";
 import { registerAccountTools } from "./tools/account.js";
@@ -106,6 +107,7 @@ export function createServer(): McpServer {
 
   // Register all tool groups
   registerBusinessTools(server, getClient);
+  registerOrgTools(server, getClient);
   registerAgentTools(server, getClient);
   registerCallTools(server, getClient);
   registerCallerTools(server, {
