@@ -10,6 +10,9 @@ function createMockClient() {
     createBusiness: vi.fn(),
     updateBusiness: vi.fn(),
     deleteBusiness: vi.fn(),
+    // Orgs
+    getOrg: vi.fn(),
+    updateOrg: vi.fn(),
     // Agents
     listAgents: vi.fn(),
     getAgent: vi.fn(),
@@ -78,6 +81,7 @@ type MockServer = ReturnType<typeof createMockServer>;
 // ── Imports (dynamic to avoid ESM issues with mocking) ───────────────
 
 import { registerBusinessTools } from '../tools/businesses.js';
+import { registerOrgTools } from '../tools/orgs.js';
 import { registerAgentTools } from '../tools/agents.js';
 import { registerAnalyticsTools } from '../tools/analytics.js';
 import { registerAccountTools } from '../tools/account.js';
@@ -98,6 +102,7 @@ describe('MCP Tools', () => {
     const getClient = () => mockClient as any;
 
     registerBusinessTools(server as any, getClient);
+    registerOrgTools(server as any, getClient);
     registerAgentTools(server as any, getClient);
     registerCallTools(server as any, getClient);
     registerWebhookTools(server as any, getClient);
@@ -116,6 +121,12 @@ describe('MCP Tools', () => {
       expect(names).toContain('create_business');
       expect(names).toContain('update_business');
       expect(names).toContain('delete_business');
+    });
+
+    it('registers all expected org tools', () => {
+      const names = server._tools.map((t) => t.name);
+      expect(names).toContain('get_org');
+      expect(names).toContain('update_org');
     });
 
     it('registers all expected agent tools', () => {
@@ -169,8 +180,8 @@ describe('MCP Tools', () => {
       expect(names).toContain('set_tool_credential');
     });
 
-    it('registers exactly 31 tools total', () => {
-      expect(server._tools.length).toBe(31);
+    it('registers exactly 33 tools total', () => {
+      expect(server._tools.length).toBe(33);
     });
   });
 
@@ -339,6 +350,90 @@ describe('MCP Tools', () => {
         business_id: 'biz_1',
       });
 
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('get_org', () => {
+    it('returns org metadata on success', async () => {
+      const org = {
+        org_id: 'org_a0cc65dbbb19',
+        name: 'Parlo',
+        owner_id: 'usr_e600df82a169',
+        plan_id: null,
+        business_ids: ['biz_1'],
+        twilio_link_kind: null,
+      };
+      mockClient.getOrg.mockResolvedValue(org);
+
+      const result = await server.getTool('get_org')!.handler({
+        org_id: 'org_a0cc65dbbb19',
+      });
+
+      expect(mockClient.getOrg).toHaveBeenCalledWith('org_a0cc65dbbb19');
+      expect(JSON.parse(result.content[0].text)).toEqual(org);
+    });
+
+    it('returns error on failure', async () => {
+      mockClient.getOrg.mockRejectedValue(new Error('Org not found'));
+      const result = await server.getTool('get_org')!.handler({
+        org_id: 'org_bad',
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Org not found');
+    });
+  });
+
+  describe('update_org', () => {
+    it('passes only provided fields to the client', async () => {
+      mockClient.updateOrg.mockResolvedValue({
+        org_id: 'org_abc',
+        name: 'Parlo',
+        plan_id: null,
+      });
+
+      await server.getTool('update_org')!.handler({
+        org_id: 'org_abc',
+        name: 'Parlo',
+      });
+
+      expect(mockClient.updateOrg).toHaveBeenCalledWith('org_abc', {
+        name: 'Parlo',
+      });
+    });
+
+    it('forwards plan_id: null to clear the plan', async () => {
+      mockClient.updateOrg.mockResolvedValue({
+        org_id: 'org_abc',
+        name: 'X',
+        plan_id: null,
+      });
+
+      await server.getTool('update_org')!.handler({
+        org_id: 'org_abc',
+        plan_id: null,
+      });
+
+      expect(mockClient.updateOrg).toHaveBeenCalledWith('org_abc', {
+        plan_id: null,
+      });
+    });
+
+    it('returns an error when no fields are provided', async () => {
+      const result = await server.getTool('update_org')!.handler({
+        org_id: 'org_abc',
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('no fields to update');
+      expect(mockClient.updateOrg).not.toHaveBeenCalled();
+    });
+
+    it('returns error on client failure', async () => {
+      mockClient.updateOrg.mockRejectedValue(new Error('Org not found'));
+      const result = await server.getTool('update_org')!.handler({
+        org_id: 'org_bad',
+        name: 'X',
+      });
       expect(result.isError).toBe(true);
     });
   });
