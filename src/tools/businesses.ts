@@ -263,6 +263,12 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
         ),
       business_hours: businessHoursSchema,
       network_config: networkConfigSchema,
+      mode: z
+        .enum(["production", "sandbox"])
+        .optional()
+        .describe(
+          "Per-business deployment mode. `production` (default) routes cap-market auctions to provider proxies tagged production (real money / live keys). `sandbox` routes to provider proxies tagged sandbox — use this when onboarding a new business that needs end-to-end testing against the rest of the platform without affecting prod traffic. See davoxi-backend PR #358 + #360 for the full architecture.",
+        ),
     },
     async (params) => {
       try {
@@ -270,6 +276,7 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
           name: params.name,
         };
         if (params.phone_numbers !== undefined) body.phone_numbers = params.phone_numbers;
+        if (params.mode !== undefined) body.mode = params.mode;
 
         if (params.voice !== undefined || params.language !== undefined || params.personality_prompt !== undefined) {
           const vc: Partial<VoiceConfig> = {};
@@ -372,6 +379,12 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
         .describe(
           "Set to true to temporarily pause the business (callers hear 'temporarily unavailable'). Set to false to resume.",
         ),
+      mode: z
+        .enum(["production", "sandbox"])
+        .optional()
+        .describe(
+          "Flip an existing business between `production` and `sandbox`. Caution: in-flight cap-market auctions for this business won't see the new mode until they complete; expect a brief inconsistency window. Most operators set mode at create time and never flip it.",
+        ),
     },
     async (params) => {
       try {
@@ -407,6 +420,10 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
 
         if (params.paused !== undefined) {
           data.paused = params.paused;
+        }
+
+        if (params.mode !== undefined) {
+          data.mode = params.mode;
         }
 
         const business = await getClient().updateBusiness(
