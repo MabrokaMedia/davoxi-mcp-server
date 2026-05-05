@@ -224,6 +224,18 @@ const accessRuleSchema = z
         .describe("Maximum events allowed in any rolling window."),
       scope: rlScopeSchema,
     }),
+    z.object({
+      type: z.literal("force_mode"),
+      handle_kind: handleKindSchema,
+      hashes: z
+        .array(z.string().regex(/^[0-9a-f]{16}$/))
+        .describe("16-hex-char handle prefixes (output of `hashHandle`)."),
+      force_mode: z
+        .enum(["production", "sandbox"])
+        .describe(
+          "Mode tag to force when a hash matches. `production` runs the prod runtime (real money); `sandbox` runs the sandbox runtime (test keys). Side-channel only — never blocks the caller; it just overrides the channel's default mode for the matched caller's turn.",
+        ),
+    }),
   ])
   .describe(
     "One rule in a `BusinessAccessPolicy`. The PEP evaluates rules in order and short-circuits on the first non-Allow.",
@@ -678,6 +690,107 @@ Common shape: \`window_sec=3600, max=60, rl_scope='per_caller'\` = "60 calls per
             {
               type: "text" as const,
               text: `Error setting rate limit: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── set_caller_force_mode ─────────────────────────────────────────── //
+  server.tool(
+    "set_caller_force_mode",
+    `Convenience: append (or extend an existing) \`ForceMode\` rule on the policy that forces a specific caller into either the production or sandbox runtime when they reach this business.
+
+This is the **per-caller dual-mode override**: when the matching caller messages the (single) business bot or calls the (single) business phone, the master Lambda's mode-resolver overrides the channel's default mode and routes their cap-market auctions against \`provider_mode={force_mode}\` providers only. Real callers without a matching rule continue to land in the channel's default mode (production).
+
+Side-channel only — \`ForceMode\` never blocks the caller. To block use \`add_caller_to_blocklist\` instead.
+
+If a \`ForceMode\` rule with the same \`handle_kind\` and \`force_mode\` already exists in the policy, the new hash is appended to its list (deduped). Otherwise a fresh rule is added.
+
+Common use case: stand up sandbox testing for a new provider proxy without provisioning a separate test bot/phone — add yourself to a \`force_mode: "sandbox"\` rule on the prod business, message the prod bot, your auctions hit sandbox providers only, real callers are unaffected.`,
+    {
+      business_id: z.string().min(1).describe("Target business id."),
+      scope: policyScopeSchema.optional().describe(
+        "Policy scope. Defaults to `default` if omitted.",
+      ),
+      handle_kind: handleKindSchema.describe(
+        "Identity dimension of the caller. `phone` for E.164 callers, `email`, `agent`, or `org`.",
+      ),
+      handle_hash: z
+        .string()
+        .regex(/^[0-9a-f]{16}$/)
+        .describe(
+          "16-hex-char handle prefix (output of `hashHandle`). The MCP client typically computes this via the `hashHandle` helper.",
+        ),
+      force_mode: z
+        .enum(["production", "sandbox"])
+        .describe(
+          "Mode the caller will land in when they reach this business. `sandbox` is the typical use (drive testing without a separate channel); `production` is rare (e.g. force a tester back to prod for a verification step).",
+        ),
+    },
+    async ({ business_id, scope, handle_kind, handle_hash, force_mode }) => {
+      const effectiveScope = scope ?? "default";
+      try {
+        const current = await getPolicy(apiOpts, business_id, effectiveScope);
+        const rules: AccessRule[] = [...current.rules];
+        // Append to an existing matching ForceMode rule if any (same
+        // handle_kind + same force_mode), else add a fresh rule.
+        const idx = rules.findIndex(
+          (r) =>
+            r.type === "force_mode" &&
+            (r as { handle_kind: string }).handle_kind === handle_kind &&
+            (r as { force_mode: string }).force_mode === force_mode,
+        );
+        if (idx >= 0) {
+          const existing = rules[idx] as { hashes: string[] };
+          if (!existing.hashes.includes(handle_hash)) {
+            existing.hashes = [...existing.hashes, handle_hash];
+          }
+        } else {
+          rules.push({
+            type: "force_mode",
+            handle_kind,
+            hashes: [handle_hash],
+            force_mode,
+          } as AccessRule);
+        }
+        const result = await putPolicy(
+          apiOpts,
+          business_id,
+          effectiveScope,
+          rules,
+          current.mandatory,
+          current.updated_at,
+        );
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  ok: true,
+                  scope: effectiveScope,
+                  force_mode_rule: {
+                    handle_kind,
+                    handle_hash,
+                    force_mode,
+                  },
+                  ...result,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error setting force_mode: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
           isError: true,
