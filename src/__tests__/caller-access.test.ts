@@ -87,7 +87,7 @@ describe("hashHandle", () => {
 // ── Tool registration ──────────────────────────────────────────────── //
 
 describe("registerCallerAccessTools", () => {
-  it("registers exactly the 6 doc-50 §6.1 tools", () => {
+  it("registers the doc-50 §6.1 tools + set_caller_force_mode (dual-mode-forever)", () => {
     const server = createMockServer();
     registerCallerAccessTools(server as any, apiOpts);
     const names = server._tools.map((t) => t.name).sort();
@@ -97,6 +97,7 @@ describe("registerCallerAccessTools", () => {
         "add_caller_to_allowlist",
         "add_caller_to_blocklist",
         "set_caller_rate_limit",
+        "set_caller_force_mode",
         "list_blocked_callers",
         "get_caller_access_audit",
       ].sort(),
