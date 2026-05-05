@@ -263,11 +263,23 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
         ),
       business_hours: businessHoursSchema,
       network_config: networkConfigSchema,
+      enable_production: z
+        .boolean()
+        .optional()
+        .describe(
+          "Whether the production runtime is enabled for this business. Defaults to `true`. The production runtime serves real callers via prod channel surfaces and routes cap-market auctions to provider proxies tagged `provider_mode=production`. Set to `false` for a test-only business that should never serve real callers.",
+        ),
+      enable_sandbox: z
+        .boolean()
+        .optional()
+        .describe(
+          "Whether the sandbox runtime is enabled for this business. Defaults to `true`. The sandbox runtime serves test users via per-caller `ForceMode` access rules (set via `set_caller_force_mode`) or via dedicated sandbox channel surfaces, and routes cap-market auctions to provider proxies tagged `provider_mode=sandbox`. Set to `false` for a business that should never run in sandbox (rare).",
+        ),
       mode: z
         .enum(["production", "sandbox"])
         .optional()
         .describe(
-          "Per-business deployment mode. `production` (default) routes cap-market auctions to provider proxies tagged production (real money / live keys). `sandbox` routes to provider proxies tagged sandbox — use this when onboarding a new business that needs end-to-end testing against the rest of the platform without affecting prod traffic. See davoxi-backend PR #358 + #360 for the full architecture.",
+          "DEPRECATED: superseded by `enable_production` + `enable_sandbox`. Kept for back-compat with clients that pre-date the dual-mode-forever model. When set, the davoxi backend promotes the single value into the matching enabled-modes flag (`mode: production` → `{ production: true, sandbox: false }`) for un-migrated DDB rows. Prefer `enable_production` / `enable_sandbox` on new code.",
         ),
     },
     async (params) => {
@@ -277,6 +289,14 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
         };
         if (params.phone_numbers !== undefined) body.phone_numbers = params.phone_numbers;
         if (params.mode !== undefined) body.mode = params.mode;
+        // Compose `enabled_modes` from the two flags. Both default to
+        // true when omitted (the dual-mode-forever posture).
+        if (params.enable_production !== undefined || params.enable_sandbox !== undefined) {
+          body.enabled_modes = {
+            production: params.enable_production !== false,
+            sandbox: params.enable_sandbox !== false,
+          };
+        }
 
         if (params.voice !== undefined || params.language !== undefined || params.personality_prompt !== undefined) {
           const vc: Partial<VoiceConfig> = {};
@@ -379,11 +399,23 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
         .describe(
           "Set to true to temporarily pause the business (callers hear 'temporarily unavailable'). Set to false to resume.",
         ),
+      enable_production: z
+        .boolean()
+        .optional()
+        .describe(
+          "Toggle the production runtime for this business. When `true`, real callers via prod channels reach the production runtime and cap-market auctions match `provider_mode=production` providers. When `false`, the production runtime is disabled (rare — use for a test-only business). Set independently from `enable_sandbox`.",
+        ),
+      enable_sandbox: z
+        .boolean()
+        .optional()
+        .describe(
+          "Toggle the sandbox runtime for this business. When `true`, test users (matched via per-caller `ForceMode` access rules) reach the sandbox runtime and cap-market auctions match `provider_mode=sandbox` providers. When `false`, sandbox is disabled and `ForceMode` rules will fail closed. Set independently from `enable_production`.",
+        ),
       mode: z
         .enum(["production", "sandbox"])
         .optional()
         .describe(
-          "Flip an existing business between `production` and `sandbox`. Caution: in-flight cap-market auctions for this business won't see the new mode until they complete; expect a brief inconsistency window. Most operators set mode at create time and never flip it.",
+          "DEPRECATED: superseded by `enable_production` + `enable_sandbox`. Kept for back-compat with un-migrated DDB rows. Prefer the two-flag form on new updates.",
         ),
     },
     async (params) => {
@@ -424,6 +456,21 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
 
         if (params.mode !== undefined) {
           data.mode = params.mode;
+        }
+
+        // PUT semantics: only set `enabled_modes` if at least one flag
+        // is explicitly provided. The backend's update_business handler
+        // does a partial-merge on this field — sending `undefined`
+        // would clobber the existing flag pair on the row.
+        if (params.enable_production !== undefined || params.enable_sandbox !== undefined) {
+          const enabledModes: Record<string, boolean> = {};
+          if (params.enable_production !== undefined) {
+            enabledModes.production = params.enable_production;
+          }
+          if (params.enable_sandbox !== undefined) {
+            enabledModes.sandbox = params.enable_sandbox;
+          }
+          data.enabled_modes = enabledModes;
         }
 
         const business = await getClient().updateBusiness(
