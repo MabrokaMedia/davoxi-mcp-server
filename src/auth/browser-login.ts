@@ -8,7 +8,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { randomBytes } from "crypto";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 
 const DEFAULT_DASHBOARD_URL = "https://app.davoxi.com";
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -18,23 +18,59 @@ export interface BrowserLoginOptions {
 }
 
 /**
+ * Validate that a URL is safe to hand to the OS-level browser opener.
+ * Only allow https URLs, or http://localhost / http://127.0.0.1 for local dev.
+ * Exported for unit-testing purposes.
+ */
+export function isSafeBrowserUrl(rawUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol === "https:") return true;
+  if (
+    parsed.protocol === "http:" &&
+    (parsed.hostname === "localhost" ||
+      parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "[::1]")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Open a URL in the user's default browser.
- * Falls back to printing the URL if the browser can't be opened.
+ * Uses spawnSync without a shell so URL contents cannot be interpreted as
+ * shell metacharacters. Returns false if the URL fails the safety check or
+ * the underlying OS opener exits non-zero.
  */
 function openBrowser(url: string): boolean {
+  if (!isSafeBrowserUrl(url)) return false;
+
+  let cmd: string;
+  let args: string[];
+  switch (process.platform) {
+    case "darwin":
+      cmd = "open";
+      args = [url];
+      break;
+    case "win32":
+      // rundll32 is built-in and accepts the URL as a parameter without shell parsing.
+      cmd = "rundll32";
+      args = ["url.dll,FileProtocolHandler", url];
+      break;
+    default:
+      cmd = "xdg-open";
+      args = [url];
+      break;
+  }
+
   try {
-    switch (process.platform) {
-      case "darwin":
-        execSync(`open "${url}"`, { stdio: "ignore" });
-        break;
-      case "win32":
-        execSync(`start "" "${url}"`, { stdio: "ignore", shell: "cmd.exe" });
-        break;
-      default:
-        execSync(`xdg-open "${url}"`, { stdio: "ignore" });
-        break;
-    }
-    return true;
+    const result = spawnSync(cmd, args, { stdio: "ignore", shell: false });
+    return result.status === 0;
   } catch {
     return false;
   }
@@ -123,6 +159,13 @@ export function browserLogin(
   options?: BrowserLoginOptions,
 ): Promise<string> {
   const dashboardUrl = options?.dashboardUrl ?? DEFAULT_DASHBOARD_URL;
+  if (!isSafeBrowserUrl(dashboardUrl)) {
+    return Promise.reject(
+      new Error(
+        "dashboardUrl must be an https:// URL or http://localhost — refusing to open browser.",
+      ),
+    );
+  }
   const state = randomBytes(32).toString("hex");
 
   return new Promise<string>((resolve, reject) => {
