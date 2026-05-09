@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -20,9 +20,19 @@ interface Lockfile {
 }
 
 function readLockfile(): Lockfile {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const lockPath = path.join(__dirname, "..", "..", "package-lock.json");
-  return JSON.parse(readFileSync(lockPath, "utf8")) as Lockfile;
+  // Walk up from this test file until we find package-lock.json. Robust to whether
+  // vitest runs the source (src/__tests__/...) or the compiled copy (dist/src/__tests__/...).
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 8; i++) {
+    const candidate = path.join(dir, "package-lock.json");
+    if (existsSync(candidate)) {
+      return JSON.parse(readFileSync(candidate, "utf8")) as Lockfile;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error("package-lock.json not found walking up from test file");
 }
 
 function findPackageVersions(lock: Lockfile, name: string): string[] {
