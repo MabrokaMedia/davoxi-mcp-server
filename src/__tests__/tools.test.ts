@@ -352,6 +352,46 @@ describe('MCP Tools', () => {
 
       expect(result.isError).toBe(true);
     });
+
+    it('passes llm_config through to the client (single-model pin)', async () => {
+      // Pin the canonical doc-34 success-criteria gesture — flip a
+      // business to Haiku-only with no Gemini fallback. The MCP
+      // tool must forward the field unchanged so the backend's
+      // partial-merge writes it onto the row.
+      mockClient.updateBusiness.mockResolvedValue({ business_id: 'biz_1' });
+
+      await server.getTool('update_business')!.handler({
+        business_id: 'biz_1',
+        llm_config: {
+          specialist_model: 'claude-haiku-4-5-20251001',
+          specialist_ladder: ['claude-haiku-4-5-20251001'],
+        },
+      });
+
+      expect(mockClient.updateBusiness).toHaveBeenCalledWith('biz_1', {
+        llm_config: {
+          specialist_model: 'claude-haiku-4-5-20251001',
+          specialist_ladder: ['claude-haiku-4-5-20251001'],
+        },
+      });
+    });
+
+    it('forwards llm_config=null verbatim to clear the override', async () => {
+      // Pin: `null` is the operator's "fall back to platform
+      // defaults" gesture. It must reach the backend as JSON null,
+      // not be silently dropped (which would leave a stale
+      // override on the row).
+      mockClient.updateBusiness.mockResolvedValue({ business_id: 'biz_1' });
+
+      await server.getTool('update_business')!.handler({
+        business_id: 'biz_1',
+        llm_config: null,
+      });
+
+      expect(mockClient.updateBusiness).toHaveBeenCalledWith('biz_1', {
+        llm_config: null,
+      });
+    });
   });
 
   describe('get_org', () => {

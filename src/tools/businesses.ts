@@ -4,7 +4,12 @@
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { DavoxiClient, VoiceConfig, MasterConfig } from "@davoxi/client";
+import type {
+  DavoxiClient,
+  VoiceConfig,
+  MasterConfig,
+  LlmConfig,
+} from "@davoxi/client";
 
 export function registerBusinessTools(
   server: McpServer,
@@ -206,6 +211,70 @@ export function registerBusinessTools(
       "Network-level routing config. Set `discoverable: true` with matching `categories` so the master orchestrator can find this business when a caller's intent matches. Omitting this field leaves the business undiscoverable.",
     );
 
+  // Per-business LLM model + ladder override (doc-34 coupling #6). The
+  // schema mirrors `shared::models::LlmConfig` on the Rust backend.
+  // Every field is optional; setting `llm_config: null` on
+  // update_business CLEARS the row's override and falls every role
+  // back to platform defaults (`shared::llm_defaults`). Per-field
+  // partial-merge: only fields you send are touched.
+  //
+  // Practical knobs:
+  //   - `*_model` pins the head model for that role.
+  //   - `*_ladder` is the escalation order. ONE-ELEMENT array = pin
+  //     to that model with no fallback (the Haiku-only success
+  //     criterion in doc-34). EMPTY array = same as one-element but
+  //     uses the head `*_model` and skips escalation entirely.
+  const modelLadderSchema = z
+    .array(z.string().min(1).max(200))
+    .max(8)
+    .describe(
+      "Escalation ladder — ordered list of model identifiers tried on Llm-tier failures. Use [\"claude-haiku-4-5-20251001\"] to PIN the business to that single model with no Gemini fallback. Max 8 entries.",
+    );
+  const llmConfigSchema = z
+    .object({
+      master_model: z
+        .string()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe(
+          "Head model for the master orchestrator (agents-master). Default lives in shared::llm_defaults::master_model().",
+        ),
+      master_ladder: modelLadderSchema.optional(),
+      specialist_model: z
+        .string()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe(
+          "Head model for specialist agents (agents-specialist tool-use loop). Default lives in shared::llm_defaults::specialist_model().",
+        ),
+      specialist_ladder: modelLadderSchema.optional(),
+      brain_model: z
+        .string()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe(
+          "Head model for the Brain decision agent (agents-brain Boss). Default lives in shared::llm_defaults::brain_model().",
+        ),
+      brain_ladder: modelLadderSchema.optional(),
+      chat_model: z
+        .string()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe(
+          "Head model for the Chat Speaker renderer (agents-chat). Default lives in shared::llm_defaults::chat_model().",
+        ),
+      chat_ladder: modelLadderSchema.optional(),
+    })
+    .nullable()
+    .optional()
+    .describe(
+      "Per-business LLM model + escalation-ladder override. Send `null` to clear the override entirely and fall all roles back to platform defaults. Unset fields are preserved on update.",
+    );
+
   // ── create_business ──────────────────────────────────────────────── //
   server.tool(
     "create_business",
@@ -354,7 +423,7 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
   // ── update_business ──────────────────────────────────────────────── //
   server.tool(
     "update_business",
-    "Updates a business. Sends a PUT request - only provided fields will be updated. You can change its name, phone numbers, voice configuration (voice model, language, personality), master configuration (temperature, max specialists), business hours, or network_config (discoverability + categories for the master orchestrator).",
+    "Updates a business. Sends a PUT request - only provided fields will be updated. You can change its name, phone numbers, voice configuration (voice model, language, personality), master configuration (temperature, max specialists), business hours, network_config (discoverability + categories for the master orchestrator), or llm_config (per-business LLM model + escalation-ladder override for the master / specialist / brain / chat agent roles).",
     {
       business_id: z
         .string()
@@ -417,6 +486,7 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
         .describe(
           "DEPRECATED: superseded by `enable_production` + `enable_sandbox`. Kept for back-compat with un-migrated DDB rows. Prefer the two-flag form on new updates.",
         ),
+      llm_config: llmConfigSchema,
     },
     async (params) => {
       try {
@@ -471,6 +541,14 @@ IMPORTANT: if this business should be discoverable by the master orchestrator (e
             enabledModes.sandbox = params.enable_sandbox;
           }
           data.enabled_modes = enabledModes;
+        }
+
+        // PUT semantics, same as enabled_modes above: only forward the
+        // field when the operator explicitly included it. `null`
+        // forwards as JSON null so the backend drops the override
+        // entirely; an object forwards for partial-merge.
+        if (params.llm_config !== undefined) {
+          data.llm_config = params.llm_config;
         }
 
         const business = await getClient().updateBusiness(

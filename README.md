@@ -149,7 +149,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 | `list_businesses` | List all businesses on your account |
 | `get_business` | Get details of a specific business (voice config, master config, phone numbers) |
 | `create_business` | Create a new business with voice model, language, personality, and temperature settings |
-| `update_business` | Update business name, phone numbers, voice config, or master config |
+| `update_business` | Update business name, phone numbers, voice config, master config, or per-business LLM model + ladder override (`llm_config`) |
 | `delete_business` | Permanently delete a business and all its agents (requires `confirm=true`) |
 
 ### Agents (7 tools)
