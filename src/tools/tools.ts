@@ -37,14 +37,16 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadMcpCredentials } from "../auth/credentials.js";
+import { validateApiUrl } from "../index.js";
 
 // ─── Resolved-once-per-call config ─────────────────────────────────── //
 
-function resolveBaseUrl(): string {
-  return (process.env.DAVOXI_API_URL ?? "https://api.davoxi.com").replace(
-    /\/+$/,
-    "",
-  );
+export function resolveBaseUrl(): string {
+  const raw = process.env.DAVOXI_API_URL ?? "https://api.davoxi.com";
+  // Go through the shared validator so the tool-registry helpers can't be
+  // pointed at `http://attacker.com` / `file://...` / userinfo-spoofed hosts
+  // that would receive the bearer token along with every fetch.
+  return validateApiUrl(raw).replace(/\/+$/, "");
 }
 
 function resolveApiKey(): string {

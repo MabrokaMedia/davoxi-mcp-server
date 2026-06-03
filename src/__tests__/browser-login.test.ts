@@ -2,7 +2,10 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import http from "http";
 import { escapeHtml } from "../auth/browser-login.js";
 
-vi.mock("child_process", () => ({ execSync: vi.fn() }));
+vi.mock("child_process", () => ({
+  execSync: vi.fn(),
+  spawnSync: vi.fn(() => ({ status: 0 })),
+}));
 
 // ---------------------------------------------------------------------------
 // escapeHtml — XSS prevention
