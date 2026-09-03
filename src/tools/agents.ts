@@ -18,7 +18,7 @@ export function registerAgentTools(
   // ── list_agents ──────────────────────────────────────────────────── //
   server.tool(
     "list_agents",
-    "List all specialist agents for a given Davoxi business. Each agent is a specialist sub-agent that handles a specific type of task during a voice call (e.g. appointment booking, FAQ answering, order lookup). Returns agent IDs, descriptions, system prompts, tools, stats, and enabled status.",
+    "List all specialist agents for a given Davoxi business. Each agent is a specialist sub-agent that handles a specific type of task during a voice call (e.g. appointment booking, FAQ answering, order lookup). Returns agent IDs, names, descriptions, system prompts, tools, stats, and enabled status.",
     {
       business_id: z
         .string()
@@ -54,7 +54,7 @@ export function registerAgentTools(
   // ── get_agent ────────────────────────────────────────────────────── //
   server.tool(
     "get_agent",
-    "Get detailed information about a specific specialist agent by business ID and agent ID. Returns the full agent object including description, system prompt, tools, knowledge sources, trigger tags, enabled status, and stats.",
+    "Get detailed information about a specific specialist agent by business ID and agent ID. Returns the full agent object including name, description, system prompt, tools, knowledge sources, trigger tags, enabled status, and stats.",
     {
       business_id: z
         .string()
@@ -109,6 +109,13 @@ Example: An appointment-booking agent might have a system prompt like "You help 
       business_id: z
         .string()
         .describe("The business ID to create the agent under."),
+      name: z
+        .string()
+        .max(AGENT_LIMITS.NAME_MAX)
+        .optional()
+        .describe(
+          `A short human name for this agent (max ${AGENT_LIMITS.NAME_MAX} chars), e.g. 'Ride booking' or 'Airtime top-up'. This is the label people see wherever agents are listed. It is NOT used for routing — the master routes on 'description'.`,
+        ),
       description: z
         .string()
         .min(1)
@@ -156,6 +163,7 @@ Example: An appointment-booking agent might have a system prompt like "You help 
     async (params) => {
       try {
         const body: Parameters<DavoxiClient["createAgent"]>[1] = {
+          ...(params.name !== undefined ? { name: params.name } : {}),
           description: params.description,
           system_prompt: params.system_prompt,
         };
@@ -200,6 +208,13 @@ Example: An appointment-booking agent might have a system prompt like "You help 
       agent_id: z
         .string()
         .describe("The unique identifier of the agent to update."),
+      name: z
+        .string()
+        .max(AGENT_LIMITS.NAME_MAX)
+        .optional()
+        .describe(
+          "New human name for the agent. Renaming does not change how the master routes to it — that follows 'description'.",
+        ),
       description: z
         .string()
         .min(1)
@@ -239,6 +254,7 @@ Example: An appointment-booking agent might have a system prompt like "You help 
     async (params) => {
       try {
         const data: Parameters<DavoxiClient["updateAgent"]>[2] = {};
+        if (params.name !== undefined) data.name = params.name;
         if (params.description !== undefined)
           data.description = params.description;
         if (params.system_prompt !== undefined)

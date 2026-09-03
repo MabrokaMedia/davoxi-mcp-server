@@ -31,7 +31,7 @@
     "url": "https://github.com/MabrokaMedia/davoxi-mcp-server.git"
   },
   "dependencies": {
-    "@davoxi/client": "github:MabrokaMedia/davoxi-client#876335f1d8bc77c3158c554712dd066689b4baae",
+    "@davoxi/client": "github:MabrokaMedia/davoxi-client#037b327522826db9f5567377f59b216e66ecb1d5",
     "@davoxi/validation": "github:MabrokaMedia/davoxi-validation",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "ws": "^8.18.0",
