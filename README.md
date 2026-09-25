@@ -177,7 +177,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 | Tool | Description |
 |---|---|
 | `list_webhooks` | List all webhooks for a business |
-| `create_webhook` | Subscribe to events (call.started, call.completed, agent.invoked, etc.) |
+| `create_webhook` | Subscribe to events (call.started, call.completed, agent.invoked, conversation.start, order.delivered, etc.); optionally reuse an existing signing secret |
 | `update_webhook` | Update webhook URL, events, or enabled status |
 | `delete_webhook` | Delete a webhook (requires `confirm=true`) |
 
