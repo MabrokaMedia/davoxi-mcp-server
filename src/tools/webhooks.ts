@@ -14,6 +14,8 @@ const WEBHOOK_EVENTS = [
   "agent.invoked",
   "agent.error",
   "business.updated",
+  "conversation.start",
+  "order.delivered",
 ] as const;
 
 export function registerWebhookTools(
@@ -82,14 +84,28 @@ Your endpoint must return a 2xx status within 10 seconds. Failed deliveries are 
         .boolean()
         .optional()
         .describe("Whether the webhook is active. Defaults to true."),
+      secret: z
+        .string()
+        .regex(/^whsec_[A-Za-z0-9]{16,128}$/)
+        .optional()
+        .describe(
+          "Signing secret to reuse, e.g. the secret of an existing webhook on this business so one receiver verifies every event with one key. Omit to mint a new one.",
+        ),
     },
     async (params) => {
       try {
-        const webhook = await getClient().createWebhook(params.business_id, {
+        // `secret` is not on the pinned client's CreateWebhookInput yet;
+        // passing a variable (not a literal) lets it through to the body.
+        const input = {
           url: params.url,
           events: params.events,
           enabled: params.enabled,
-        });
+          ...(params.secret ? { secret: params.secret } : {}),
+        };
+        const webhook = await getClient().createWebhook(
+          params.business_id,
+          input,
+        );
         return {
           content: [
             {

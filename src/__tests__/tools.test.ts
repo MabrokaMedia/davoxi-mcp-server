@@ -800,6 +800,24 @@ describe('MCP Tools', () => {
       expect(JSON.parse(result.content[0].text)).toEqual(hook);
     });
 
+    it('forwards a reused secret for the conversation events', async () => {
+      mockClient.createWebhook.mockResolvedValue({ webhook_id: 'wh_1' });
+
+      await server.getTool('create_webhook')!.handler({
+        business_id: 'biz_1',
+        url: 'https://example.com/start',
+        events: ['conversation.start', 'order.delivered'],
+        secret: 'whsec_0123456789abcdef0123456789abcdef',
+      });
+
+      expect(mockClient.createWebhook).toHaveBeenCalledWith('biz_1', {
+        url: 'https://example.com/start',
+        events: ['conversation.start', 'order.delivered'],
+        enabled: undefined,
+        secret: 'whsec_0123456789abcdef0123456789abcdef',
+      });
+    });
+
     it('returns error on failure', async () => {
       mockClient.createWebhook.mockRejectedValue(new Error('Invalid URL'));
 
