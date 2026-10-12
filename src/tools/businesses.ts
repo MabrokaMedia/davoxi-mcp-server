@@ -228,7 +228,7 @@ export function registerBusinessTools(
     .array(z.string().min(1).max(200))
     .max(8)
     .describe(
-      "Escalation ladder — ordered list of model identifiers tried on Llm-tier failures. Use [\"claude-haiku-4-5-20251001\"] to PIN the business to that single model with no Gemini fallback. Max 8 entries.",
+      "Escalation ladder — ordered list of model identifiers tried on Llm-tier failures. Use [\"claude-haiku-5-5\"] to PIN the business to that single model with no Gemini fallback. Max 8 entries.",
     );
   const llmConfigSchema = z
     .object({
