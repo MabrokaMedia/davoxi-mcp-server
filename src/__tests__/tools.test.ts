@@ -363,15 +363,15 @@ describe('MCP Tools', () => {
       await server.getTool('update_business')!.handler({
         business_id: 'biz_1',
         llm_config: {
-          specialist_model: 'claude-haiku-4-5-20251001',
-          specialist_ladder: ['claude-haiku-4-5-20251001'],
+          specialist_model: 'claude-haiku-5-5',
+          specialist_ladder: ['claude-haiku-5-5'],
         },
       });
 
       expect(mockClient.updateBusiness).toHaveBeenCalledWith('biz_1', {
         llm_config: {
-          specialist_model: 'claude-haiku-4-5-20251001',
-          specialist_ladder: ['claude-haiku-4-5-20251001'],
+          specialist_model: 'claude-haiku-5-5',
+          specialist_ladder: ['claude-haiku-5-5'],
         },
       });
     });
